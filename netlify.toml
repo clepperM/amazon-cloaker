@@ -2,11 +2,11 @@
   functions = "netlify/functions"
 
 [[redirects]]
-  from = "/go/*"
+  from = "/:asin"
   to = "/.netlify/functions/go"
   status = 200
 
 [[redirects]]
-  from = "/go"
+  from = "/"
   to = "/.netlify/functions/go"
   status = 200
