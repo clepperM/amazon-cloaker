@@ -1,0 +1,12 @@
+[build]
+  functions = "netlify/functions"
+
+[[redirects]]
+  from = "/go/*"
+  to = "/.netlify/functions/go"
+  status = 200
+
+[[redirects]]
+  from = "/go"
+  to = "/.netlify/functions/go"
+  status = 200
