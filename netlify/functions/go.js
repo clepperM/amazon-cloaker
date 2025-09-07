@@ -4,12 +4,12 @@ const { parse } = require('node-html-parser');
 exports.handler = async (event, context) => {
  let asin = null;
  
- // Check if it's a URL parameter format: /go?url=https://amazon.com/...
+ // Check if it's a URL parameter format: /?url=https://amazon.com/...
  const urlParam = event.queryStringParameters?.url;
  if (urlParam) {
    asin = extractASINFromURL(decodeURIComponent(urlParam));
  } else {
-   // Check if it's a direct ASIN format: /go/B09P21T2GC
+   // Check if it's a direct ASIN format: /B09P21T2GC
    const pathAsin = event.path.replace('/', '').split('/')[0];
    if (pathAsin && pathAsin.length === 10 && /^[A-Z0-9]{10}$/i.test(pathAsin)) {
      asin = pathAsin;
@@ -130,15 +130,41 @@ async function fetchAmazonProduct(asin) {
            title = titleElement.text.trim();
          }
          
-         // Extract product image
+         // Extract product image - get highest quality
          let image = '';
          const imageElement = root.querySelector('#landingImage') ||
                              root.querySelector('.a-dynamic-image') ||
                              root.querySelector('img[data-old-hires]');
+
          if (imageElement) {
-           image = imageElement.getAttribute('src') || 
-                  imageElement.getAttribute('data-old-hires') ||
-                  imageElement.getAttribute('data-a-dynamic-image');
+           let rawImage = imageElement.getAttribute('data-old-hires') || 
+                         imageElement.getAttribute('src') ||
+                         imageElement.getAttribute('data-a-dynamic-image');
+                         
+           if (rawImage) {
+             // Parse dynamic image JSON if present
+             if (rawImage.startsWith('{')) {
+               try {
+                 const imageData = JSON.parse(rawImage);
+                 // Get the largest available image
+                 const imageUrls = Object.keys(imageData);
+                 image = imageUrls[imageUrls.length - 1]; // Usually the largest
+               } catch (e) {
+                 image = rawImage.match(/"([^"]*\.jpg[^"]*)"/)?.[1] || rawImage;
+               }
+             } else {
+               image = rawImage;
+             }
+             
+             // Force higher resolution by modifying Amazon image URL
+             if (image.includes('amazon.com') || image.includes('ssl-images-amazon')) {
+               // Replace size parameters with larger ones
+               image = image
+                 .replace(/\._[A-Z0-9,_]*\./, '._AC_SL1500_.')  // Large size
+                 .replace(/\._SX\d+_/, '._SX1000_')              // Width 1000px
+                 .replace(/\._SY\d+_/, '._SY1000_');             // Height 1000px
+             }
+           }
          }
          
          // Extract price
@@ -151,7 +177,7 @@ async function fetchAmazonProduct(asin) {
          
          resolve({
            title: title || `Amazon Product ${asin}`,
-           image: image || `https://images-na.ssl-images-amazon.com/images/P/${asin}.01._SX300_QL70_.jpg`,
+           image: image || `https://images-na.ssl-images-amazon.com/images/P/${asin}.01._SL1500_.jpg`,
            price: price,
            asin: asin
          });
@@ -517,7 +543,7 @@ function generateHTML(productData, asin) {
 
 function generateFallbackHTML(asin) {
  const affiliateUrl = `https://www.amazon.com/dp/${asin}?tag=onelastlynx-20`;
- const fallbackImage = `https://images-na.ssl-images-amazon.com/images/P/${asin}.01._SX300_QL70_.jpg`;
+ const fallbackImage = `https://images-na.ssl-images-amazon.com/images/P/${asin}.01._SL1500_.jpg`;
  
  return `<!DOCTYPE html>
 <html lang="en">
@@ -576,7 +602,3 @@ function generateFallbackHTML(asin) {
 </body>
 </html>`;
 }
-
-
-
-
