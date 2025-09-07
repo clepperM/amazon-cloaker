@@ -10,7 +10,7 @@ exports.handler = async (event, context) => {
    asin = extractASINFromURL(decodeURIComponent(urlParam));
  } else {
    // Check if it's a direct ASIN format: /go/B09P21T2GC
-   const pathAsin = event.path.replace('/', '').split('/')[0];
+   const pathAsin = event.path.replace('/go/', '').split('/')[0];
    if (pathAsin && pathAsin.length === 10 && /^[A-Z0-9]{10}$/i.test(pathAsin)) {
      asin = pathAsin;
    }
@@ -576,5 +576,6 @@ function generateFallbackHTML(asin) {
 </body>
 </html>`;
 }
+
 
 
