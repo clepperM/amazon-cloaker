@@ -5,8 +5,6 @@ const https = require('https');
 const ACCESS_KEY = process.env.AMAZON_ACCESS_KEY;
 const SECRET_KEY = process.env.AMAZON_SECRET_KEY;
 const ASSOCIATE_TAG = process.env.AMAZON_ASSOCIATE_TAG || 'onelastlynx-20';
-const REGION = 'us-east-1';
-const HOST = 'webservices.amazon.com';
 
 exports.handler = async (event, context) => {
   let asin = null;
