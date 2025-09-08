@@ -1,5 +1,12 @@
+const crypto = require('crypto');
 const https = require('https');
-const { parse } = require('node-html-parser');
+
+// Amazon API Configuration - Add these to your Netlify environment variables
+const ACCESS_KEY = process.env.AMAZON_ACCESS_KEY;
+const SECRET_KEY = process.env.AMAZON_SECRET_KEY;
+const ASSOCIATE_TAG = process.env.AMAZON_ASSOCIATE_TAG || 'onelastlynx-20';
+const REGION = 'us-east-1';
+const HOST = 'webservices.amazon.com';
 
 exports.handler = async (event, context) => {
   let asin = null;
@@ -22,24 +29,27 @@ exports.handler = async (event, context) => {
       headers: {
         'Content-Type': 'text/html',
       },
-      body: `
-        <!DOCTYPE html>
-        <html>
-        <head><title>Invalid Link</title></head>
-        <body style="text-align: center; padding: 50px; font-family: Arial, sans-serif;">
-          <h2>❌ Invalid Amazon Link</h2>
-          <p>Please use one of these formats:</p>
-          <p><code>go.onelastlink.com/B09P21T2GC</code></p>
-          <p><code>go.onelastlink.com/?url=https://amazon.com/dp/B09P21T2GC</code></p>
-        </body>
-        </html>
-      `
+      body: generateErrorHTML()
     };
   }
 
   try {
-    // Fetch Amazon product data
-    const productData = await fetchAmazonProduct(asin);
+    // Check if we have API credentials
+    if (!ACCESS_KEY || !SECRET_KEY) {
+      console.log('Amazon API credentials not found, falling back to scraping');
+      const productData = await fetchAmazonProductScraping(asin);
+      const html = generateHTML(productData, asin);
+      return {
+        statusCode: 200,
+        headers: {
+          'Content-Type': 'text/html',
+        },
+        body: html
+      };
+    }
+
+    // Fetch Amazon product data using API
+    const productData = await fetchAmazonProductAPI(asin);
     
     // Generate HTML with OpenGraph tags
     const html = generateHTML(productData, asin);
@@ -54,15 +64,29 @@ exports.handler = async (event, context) => {
   } catch (error) {
     console.error('Error:', error);
     
-    // Fallback HTML
-    const fallbackHtml = generateFallbackHTML(asin);
-    return {
-      statusCode: 200,
-      headers: {
-        'Content-Type': 'text/html',
-      },
-      body: fallbackHtml
-    };
+    // Fallback to scraping if API fails
+    try {
+      console.log('API failed, attempting scraping fallback');
+      const productData = await fetchAmazonProductScraping(asin);
+      const html = generateHTML(productData, asin);
+      return {
+        statusCode: 200,
+        headers: {
+          'Content-Type': 'text/html',
+        },
+        body: html
+      };
+    } catch (fallbackError) {
+      console.error('Fallback also failed:', fallbackError);
+      const fallbackHtml = generateFallbackHTML(asin);
+      return {
+        statusCode: 200,
+        headers: {
+          'Content-Type': 'text/html',
+        },
+        body: fallbackHtml
+      };
+    }
   }
 };
 
@@ -99,7 +123,100 @@ function extractASINFromURL(url) {
   return null;
 }
 
-async function fetchAmazonProduct(asin) {
+// Amazon Product Advertising API Implementation
+async function fetchAmazonProductAPI(asin) {
+  const timestamp = new Date().toISOString();
+  const canonicalQueryString = `AssociateTag=${ASSOCIATE_TAG}&ItemIds=${asin}&ItemLookupResponseGroup=ItemAttributes,Images,OfferFull&Operation=ItemLookup&Service=AWSECommerceService&Timestamp=${encodeURIComponent(timestamp)}&Version=2013-08-01`;
+  
+  // Create the string to sign
+  const stringToSign = `GET\n${HOST}\n/onca/xml\n${canonicalQueryString}`;
+  
+  // Create signature
+  const signature = crypto
+    .createHmac('sha256', SECRET_KEY)
+    .update(stringToSign)
+    .digest('base64');
+  
+  const requestUrl = `https://${HOST}/onca/xml?${canonicalQueryString}&Signature=${encodeURIComponent(signature)}`;
+  
+  return new Promise((resolve, reject) => {
+    const options = {
+      method: 'GET',
+      headers: {
+        'User-Agent': 'OneLastLink/1.0'
+      }
+    };
+
+    const req = https.request(requestUrl, options, (res) => {
+      let data = '';
+      
+      res.on('data', (chunk) => {
+        data += chunk;
+      });
+      
+      res.on('end', () => {
+        try {
+          // Parse XML response (you might want to use an XML parser library)
+          const productData = parseAmazonAPIResponse(data, asin);
+          resolve(productData);
+        } catch (parseError) {
+          console.error('API Parse error:', parseError);
+          reject(parseError);
+        }
+      });
+    });
+    
+    req.on('error', (error) => {
+      console.error('API Request error:', error);
+      reject(error);
+    });
+    
+    req.setTimeout(8000, () => {
+      req.abort();
+      reject(new Error('API request timeout'));
+    });
+    
+    req.end();
+  });
+}
+
+// Simple XML parser for Amazon API response
+function parseAmazonAPIResponse(xmlData, asin) {
+  // Basic XML parsing - for production, consider using a proper XML parser
+  let title = '';
+  let image = '';
+  let price = '';
+  
+  // Extract title
+  const titleMatch = xmlData.match(/<Title[^>]*>(.*?)<\/Title>/i);
+  if (titleMatch) {
+    title = titleMatch[1].replace(/<!\[CDATA\[(.*?)\]\]>/g, '$1').trim();
+  }
+  
+  // Extract image
+  const imageMatch = xmlData.match(/<LargeImage[^>]*>.*?<URL[^>]*>(.*?)<\/URL>/i);
+  if (imageMatch) {
+    image = imageMatch[1].trim();
+  }
+  
+  // Extract price
+  const priceMatch = xmlData.match(/<FormattedPrice[^>]*>(.*?)<\/FormattedPrice>/i);
+  if (priceMatch) {
+    price = priceMatch[1].replace(/<!\[CDATA\[(.*?)\]\]>/g, '$1').trim();
+  }
+  
+  return {
+    title: title || `Amazon Product ${asin}`,
+    image: image || `https://images-na.ssl-images-amazon.com/images/P/${asin}.01._SL1500_.jpg`,
+    price: price,
+    asin: asin
+  };
+}
+
+// Fallback scraping function (your existing implementation)
+async function fetchAmazonProductScraping(asin) {
+  const { parse } = require('node-html-parser');
+  
   // Try multiple User-Agent strings
   const userAgents = [
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
@@ -135,7 +252,7 @@ async function fetchAmazonProduct(asin) {
         try {
           // Check if Amazon blocked the request
           if (data.includes('Robot Check') || data.includes('blocked') || data.length < 1000) {
-            console.log('Amazon blocked request for ASIN:', asin);
+            console.log('Amazon blocked scraping request for ASIN:', asin);
             // Return fallback data instead of failing
             resolve({
               title: `Amazon Product ${asin}`,
@@ -251,24 +368,12 @@ async function fetchAmazonProduct(asin) {
     
     req.on('error', (error) => {
       console.error('Request error:', error);
-      // Return fallback instead of rejecting
-      resolve({
-        title: `Amazon Product ${asin}`,
-        image: `https://images-na.ssl-images-amazon.com/images/P/${asin}.01._SL1500_.jpg`,
-        price: '',
-        asin: asin
-      });
+      reject(error);
     });
     
     req.setTimeout(10000, () => {
       req.abort();
-      // Return fallback instead of rejecting
-      resolve({
-        title: `Amazon Product ${asin}`,
-        image: `https://images-na.ssl-images-amazon.com/images/P/${asin}.01._SL1500_.jpg`,
-        price: '',
-        asin: asin
-      });
+      reject(new Error('Scraping request timeout'));
     });
     
     req.end();
@@ -276,7 +381,7 @@ async function fetchAmazonProduct(asin) {
 }
 
 function generateHTML(productData, asin) {
-  const affiliateUrl = `https://www.amazon.com/dp/${asin}?tag=onelastlynx-20`;
+  const affiliateUrl = `https://www.amazon.com/dp/${asin}?tag=${ASSOCIATE_TAG}`;
   
   return `<!DOCTYPE html>
 <html lang="en">
@@ -616,7 +721,7 @@ function generateHTML(productData, asin) {
 }
 
 function generateFallbackHTML(asin) {
-  const affiliateUrl = `https://www.amazon.com/dp/${asin}?tag=onelastlynx-20`;
+  const affiliateUrl = `https://www.amazon.com/dp/${asin}?tag=${ASSOCIATE_TAG}`;
   const fallbackImage = `https://images-na.ssl-images-amazon.com/images/P/${asin}.01._SL1500_.jpg`;
   
   return `<!DOCTYPE html>
@@ -677,3 +782,17 @@ function generateFallbackHTML(asin) {
 </html>`;
 }
 
+function generateErrorHTML() {
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head><title>Invalid Link</title></head>
+    <body style="text-align: center; padding: 50px; font-family: Arial, sans-serif;">
+      <h2>❌ Invalid Amazon Link</h2>
+      <p>Please use one of these formats:</p>
+      <p><code>go.onelastlink.com/B09P21T2GC</code></p>
+      <p><code>go.onelastlink.com/?url=https://amazon.com/dp/B09P21T2GC</code></p>
+    </body>
+    </html>
+  `;
+}
