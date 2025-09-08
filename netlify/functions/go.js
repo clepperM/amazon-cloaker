@@ -46,7 +46,7 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // Fetch Amazon product data using API
+    // Fetch Amazon product data using PA-API 5.0
     const productData = await fetchAmazonProductAPI(asin);
     
     // Generate HTML with OpenGraph tags
@@ -121,31 +121,70 @@ function extractASINFromURL(url) {
   return null;
 }
 
-// Amazon Product Advertising API Implementation
+// Amazon Product Advertising API 5.0 Implementation
 async function fetchAmazonProductAPI(asin) {
-  const timestamp = new Date().toISOString();
-  const canonicalQueryString = `AssociateTag=${ASSOCIATE_TAG}&ItemIds=${asin}&ItemLookupResponseGroup=ItemAttributes,Images,OfferFull&Operation=ItemLookup&Service=AWSECommerceService&Timestamp=${encodeURIComponent(timestamp)}&Version=2013-08-01`;
+  const method = 'POST';
+  const service = 'ProductAdvertisingAPI';
+  const target = 'com.amazon.paapi5.v1.ProductAdvertisingAPIv1.GetItems';
+  const region = 'us-east-1';
+  const host = 'webservices.amazon.com';
+  const endpoint = `https://${host}`;
   
-  // Create the string to sign
-  const stringToSign = `GET\n${HOST}\n/onca/xml\n${canonicalQueryString}`;
+  // Request payload for PA-API 5.0
+  const payload = JSON.stringify({
+    ItemIds: [asin],
+    Resources: [
+      'ItemInfo.Title',
+      'ItemInfo.Features', 
+      'Images.Primary.Large',
+      'Images.Primary.Medium',
+      'Offers.Listings.Price'
+    ],
+    PartnerTag: ASSOCIATE_TAG,
+    PartnerType: 'Associates',
+    Marketplace: 'www.amazon.com'
+  });
   
-  // Create signature
-  const signature = crypto
-    .createHmac('sha256', SECRET_KEY)
-    .update(stringToSign)
-    .digest('base64');
+  // Create AWS Signature Version 4
+  const canonicalUri = '/paapi5/getitems';
+  const canonicalQuerystring = '';
+  const canonicalHeaders = `content-type:application/json; charset=utf-8\nhost:${host}\nx-amz-target:${target}\n`;
+  const signedHeaders = 'content-type;host;x-amz-target';
+  const payloadHash = crypto.createHash('sha256').update(payload).digest('hex');
   
-  const requestUrl = `https://${HOST}/onca/xml?${canonicalQueryString}&Signature=${encodeURIComponent(signature)}`;
+  const canonicalRequest = `${method}\n${canonicalUri}\n${canonicalQuerystring}\n${canonicalHeaders}\n${signedHeaders}\n${payloadHash}`;
+  
+  const timestamp = new Date();
+  const dateStamp = timestamp.toISOString().split('T')[0].replace(/-/g, '');
+  const amzDate = timestamp.toISOString().replace(/[:-]|\.\d{3}/g, '');
+  
+  const credentialScope = `${dateStamp}/${region}/${service}/aws4_request`;
+  const stringToSign = `AWS4-HMAC-SHA256\n${amzDate}\n${credentialScope}\n${crypto.createHash('sha256').update(canonicalRequest).digest('hex')}`;
+  
+  // Create signing key
+  const kDate = crypto.createHmac('sha256', `AWS4${SECRET_KEY}`).update(dateStamp).digest();
+  const kRegion = crypto.createHmac('sha256', kDate).update(region).digest();
+  const kService = crypto.createHmac('sha256', kRegion).update(service).digest();
+  const kSigning = crypto.createHmac('sha256', kService).update('aws4_request').digest();
+  
+  const signature = crypto.createHmac('sha256', kSigning).update(stringToSign).digest('hex');
+  
+  const authorization = `AWS4-HMAC-SHA256 Credential=${ACCESS_KEY}/${credentialScope}, SignedHeaders=${signedHeaders}, Signature=${signature}`;
   
   return new Promise((resolve, reject) => {
     const options = {
-      method: 'GET',
+      method: method,
       headers: {
-        'User-Agent': 'OneLastLink/1.0'
+        'Authorization': authorization,
+        'Content-Type': 'application/json; charset=utf-8',
+        'Host': host,
+        'X-Amz-Date': amzDate,
+        'X-Amz-Target': target,
+        'Content-Length': payload.length
       }
     };
 
-    const req = https.request(requestUrl, options, (res) => {
+    const req = https.request(endpoint + canonicalUri, options, (res) => {
       let data = '';
       
       res.on('data', (chunk) => {
@@ -154,53 +193,70 @@ async function fetchAmazonProductAPI(asin) {
       
       res.on('end', () => {
         try {
-          // Parse XML response (you might want to use an XML parser library)
-          const productData = parseAmazonAPIResponse(data, asin);
+          const response = JSON.parse(data);
+          
+          if (response.Errors && response.Errors.length > 0) {
+            console.error('PA-API 5.0 Error:', response.Errors[0].Message);
+            reject(new Error(response.Errors[0].Message));
+            return;
+          }
+          
+          const productData = parsePAAPI5Response(response, asin);
           resolve(productData);
         } catch (parseError) {
-          console.error('API Parse error:', parseError);
+          console.error('PA-API 5.0 Parse error:', parseError);
           reject(parseError);
         }
       });
     });
     
     req.on('error', (error) => {
-      console.error('API Request error:', error);
+      console.error('PA-API 5.0 Request error:', error);
       reject(error);
     });
     
     req.setTimeout(8000, () => {
       req.abort();
-      reject(new Error('API request timeout'));
+      reject(new Error('PA-API 5.0 request timeout'));
     });
     
+    req.write(payload);
     req.end();
   });
 }
 
-// Simple XML parser for Amazon API response
-function parseAmazonAPIResponse(xmlData, asin) {
-  // Basic XML parsing - for production, consider using a proper XML parser
+// Parse PA-API 5.0 JSON response
+function parsePAAPI5Response(response, asin) {
   let title = '';
   let image = '';
   let price = '';
   
-  // Extract title
-  const titleMatch = xmlData.match(/<Title[^>]*>(.*?)<\/Title>/i);
-  if (titleMatch) {
-    title = titleMatch[1].replace(/<!\[CDATA\[(.*?)\]\]>/g, '$1').trim();
-  }
-  
-  // Extract image
-  const imageMatch = xmlData.match(/<LargeImage[^>]*>.*?<URL[^>]*>(.*?)<\/URL>/i);
-  if (imageMatch) {
-    image = imageMatch[1].trim();
-  }
-  
-  // Extract price
-  const priceMatch = xmlData.match(/<FormattedPrice[^>]*>(.*?)<\/FormattedPrice>/i);
-  if (priceMatch) {
-    price = priceMatch[1].replace(/<!\[CDATA\[(.*?)\]\]>/g, '$1').trim();
+  try {
+    if (response.ItemsResult && response.ItemsResult.Items && response.ItemsResult.Items.length > 0) {
+      const item = response.ItemsResult.Items[0];
+      
+      // Extract title
+      if (item.ItemInfo && item.ItemInfo.Title && item.ItemInfo.Title.DisplayValue) {
+        title = item.ItemInfo.Title.DisplayValue;
+      }
+      
+      // Extract image
+      if (item.Images && item.Images.Primary && item.Images.Primary.Large && item.Images.Primary.Large.URL) {
+        image = item.Images.Primary.Large.URL;
+      } else if (item.Images && item.Images.Primary && item.Images.Primary.Medium && item.Images.Primary.Medium.URL) {
+        image = item.Images.Primary.Medium.URL;
+      }
+      
+      // Extract price
+      if (item.Offers && item.Offers.Listings && item.Offers.Listings.length > 0) {
+        const listing = item.Offers.Listings[0];
+        if (listing.Price && listing.Price.DisplayAmount) {
+          price = listing.Price.DisplayAmount;
+        }
+      }
+    }
+  } catch (parseError) {
+    console.error('Error parsing PA-API 5.0 response:', parseError);
   }
   
   return {
@@ -794,3 +850,4 @@ function generateErrorHTML() {
     </html>
   `;
 }
+
