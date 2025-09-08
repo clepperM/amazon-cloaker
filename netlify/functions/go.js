@@ -560,8 +560,8 @@ function generateHTML(productData, asin) {
         <div class="brand-logo">
             <img src="https://cdn.prod.website-files.com/6813bc8de3014317dbb7ce36/68b1450de3257ab4374d7a6b_webclip.png" alt="OneLastLink" />
         </div>
-        <div class="brand-name">OneLastLink</div>
-        <div class="brand-tagline">Your trusted link companion</div>
+        <div class="brand-name">One Last Link</div>
+        <div class="brand-tagline">The Internet's Impulse Vault</div>
         
         <!-- Product Card -->
         <div class="product-card">
@@ -592,7 +592,7 @@ function generateHTML(productData, asin) {
                 <svg class="shield-icon" viewBox="0 0 24 24">
                     <path d="M12,1L3,5V11C3,16.55 6.84,21.74 12,23C17.16,21.74 21,16.55 21,11V5L12,1M10,17L6,13L7.41,11.59L10,14.17L16.59,7.58L18,9L10,17Z"/>
                 </svg>
-                Secured by OneLastLink • Trusted affiliate partner
+                Secured by One Last Link • Trusted affiliate partner
             </div>
         </div>
     </div>
@@ -676,3 +676,4 @@ function generateFallbackHTML(asin) {
 </body>
 </html>`;
 }
+
