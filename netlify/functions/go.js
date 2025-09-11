@@ -319,15 +319,35 @@ function parsePAAPI5Response(response, asin) {
   };
 }
 
-// IMPROVED Fallback scraping function with better selectors and image quality
+// IMPROVED Fallback scraping function with multiple strategies
 async function fetchAmazonProductScraping(asin) {
+  // Strategy 1: Try scraping Amazon directly
+  const directResult = await tryDirectAmazonScraping(asin);
+  if (directResult && directResult.title !== `Amazon Product ${asin}`) {
+    console.log('Direct scraping successful:', directResult);
+    return directResult;
+  }
+
+  // Strategy 2: Try alternative Amazon endpoints
+  const altResult = await tryAlternativeEndpoints(asin);
+  if (altResult && altResult.title !== `Amazon Product ${asin}`) {
+    console.log('Alternative endpoint successful:', altResult);
+    return altResult;
+  }
+
+  // Strategy 3: Use Amazon's image service directly for better images
+  const enhancedResult = await enhanceWithAmazonImages(asin);
+  console.log('Enhanced with Amazon images:', enhancedResult);
+  return enhancedResult;
+}
+
+async function tryDirectAmazonScraping(asin) {
   const { parse } = require('node-html-parser');
   
-  // Try multiple User-Agent strings - more recent ones
+  // More realistic browser headers
   const userAgents = [
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0',
     'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
   ];
   
@@ -336,18 +356,20 @@ async function fetchAmazonProductScraping(asin) {
   return new Promise((resolve, reject) => {
     const options = {
       hostname: 'www.amazon.com',
-      path: `/dp/${asin}`,
+      path: `/dp/${asin}?ref=sr_1_1`,
       method: 'GET',
       headers: {
         'User-Agent': randomUserAgent,
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
         'Accept-Language': 'en-US,en;q=0.9',
         'Accept-Encoding': 'gzip, deflate, br',
+        'DNT': '1',
         'Connection': 'keep-alive',
         'Upgrade-Insecure-Requests': '1',
         'Sec-Fetch-Dest': 'document',
         'Sec-Fetch-Mode': 'navigate',
         'Sec-Fetch-Site': 'none',
+        'Sec-Fetch-User': '?1',
         'Cache-Control': 'max-age=0'
       }
     };
@@ -361,56 +383,46 @@ async function fetchAmazonProductScraping(asin) {
       
       res.on('end', () => {
         try {
-          // Check if Amazon blocked the request
+          // Check if blocked
           if (data.includes('Robot Check') || data.includes('blocked') || data.length < 1000) {
-            console.log('Amazon blocked scraping request for ASIN:', asin);
-            resolve({
-              title: `Amazon Product ${asin}`,
-              image: `https://images-na.ssl-images-amazon.com/images/P/${asin}.01._SL1500_.jpg`,
-              price: '',
-              asin: asin
-            });
+            console.log('Direct scraping blocked for ASIN:', asin);
+            resolve(null);
             return;
           }
           
           const root = parse(data);
           
-          // IMPROVED: Extract product title with more selectors and better cleaning
+          // Enhanced title extraction
           let title = '';
           const titleSelectors = [
             '#productTitle',
             '[data-automation-id="product-title"]',
-            '.product-title', 
-            'h1.a-size-large',
+            'h1.a-size-large.a-spacing-none.a-color-base',
             'h1[data-automation-id="product-title"]',
-            '.a-size-large.product-title-word-break',
-            'span#productTitle',
-            'h1.a-size-base-plus'
+            '.product-title',
+            'span#productTitle'
           ];
           
           for (const selector of titleSelectors) {
             const element = root.querySelector(selector);
             if (element && element.text.trim()) {
-              title = element.text.trim();
-              // Clean up title - remove extra whitespace and common Amazon suffixes
-              title = title
+              title = element.text.trim()
                 .replace(/\s+/g, ' ')
                 .replace(/\s*-\s*Amazon\.com$/, '')
                 .replace(/\s*\|\s*Amazon\.com$/, '')
                 .trim();
-              break;
+              if (title.length > 10) break; // Only accept substantial titles
             }
           }
           
-          // IMPROVED: Extract product image with better quality and more attempts
+          // Enhanced image extraction with multiple fallbacks
           let image = '';
           const imageSelectors = [
             '#landingImage',
             '.a-dynamic-image',
             'img[data-old-hires]',
+            '#imgBlkFront',
             '.imgTagWrapper img',
-            '#main-image',
-            '.a-button-thumbnail img',
             'img[src*="images-na.ssl-images-amazon.com"]',
             'img[data-a-dynamic-image]'
           ];
@@ -424,12 +436,11 @@ async function fetchAmazonProductScraping(asin) {
                             element.getAttribute('data-src');
                             
               if (rawImage && (rawImage.includes('images-na.ssl-images-amazon.com') || rawImage.includes('m.media-amazon.com'))) {
-                // Parse dynamic image JSON if present
+                // Handle dynamic image JSON
                 if (rawImage.startsWith('{')) {
                   try {
                     const imageData = JSON.parse(rawImage);
                     const imageUrls = Object.keys(imageData);
-                    // Get the largest image available
                     image = imageUrls.sort((a, b) => {
                       const aSize = parseInt(a.match(/_SX(\d+)_/) || a.match(/(\d+)x\d+/) || [0, 0])[1] || 0;
                       const bSize = parseInt(b.match(/_SX(\d+)_/) || b.match(/(\d+)x\d+/) || [0, 0])[1] || 0;
@@ -443,36 +454,22 @@ async function fetchAmazonProductScraping(asin) {
                   image = rawImage;
                 }
                 
-                // IMPROVED: Force higher resolution and better quality
-                if (image && (image.includes('amazon.com') || image.includes('ssl-images-amazon'))) {
-                  image = image
-                    // Remove size restrictions and force larger images
-                    .replace(/\._[A-Z0-9,_]*\./g, '._AC_SL1500_.')
-                    .replace(/\._SX\d+_/g, '._SX1500_')
-                    .replace(/\._SY\d+_/g, '._SY1500_')
-                    .replace(/\._AC_UL\d+_/g, '._AC_UL1500_')
-                    .replace(/\._AC_UY\d+_/g, '._AC_UY1500_')
-                    // Ensure we get the highest quality
-                    .replace(/\._SS\d+_/g, '._SL1500_')
-                    // Remove compression artifacts parameters
-                    .replace(/,\d+_/g, '_');
+                // Force high resolution
+                if (image) {
+                  image = enhanceImageQuality(image);
+                  break;
                 }
-                break;
               }
             }
           }
           
-          // IMPROVED: Extract price with more selectors
+          // Price extraction
           let price = '';
           const priceSelectors = [
             '.a-price.a-text-price.a-size-medium.apexPriceToPay .a-offscreen',
             '.a-price .a-offscreen',
-            '.a-price-whole',
-            '.a-price-symbol + .a-price-whole',
-            '#price_inside_buybox',
-            '.a-price.a-text-price .a-offscreen',
-            '[data-automation-id="list-price"] .a-offscreen',
-            '.a-price-current .a-offscreen'
+            '.a-price-current .a-offscreen',
+            '.a-price-whole'
           ];
           
           for (const selector of priceSelectors) {
@@ -483,48 +480,174 @@ async function fetchAmazonProductScraping(asin) {
             }
           }
           
-          // If no price found, try one more method
-          if (!price) {
-            const priceElement = root.querySelector('.a-price');
-            if (priceElement) {
-              const priceText = priceElement.text;
-              const priceMatch = priceText.match(/\$[\d,]+\.?\d*/);
-              if (priceMatch) {
-                price = priceMatch[0];
-              }
-            }
-          }
-          
-          const result = {
-            title: title || `Amazon Product ${asin}`,
-            image: image || `https://images-na.ssl-images-amazon.com/images/P/${asin}.01._SL1500_.jpg`,
+          resolve({
+            title: title || null,
+            image: image || null,
             price: price,
             asin: asin
-          };
-          
-          console.log('Scraping result:', result);
-          resolve(result);
+          });
           
         } catch (parseError) {
-          console.error('Parse error:', parseError);
-          resolve({
-            title: `Amazon Product ${asin}`,
-            image: `https://images-na.ssl-images-amazon.com/images/P/${asin}.01._SL1500_.jpg`,
-            price: '',
-            asin: asin
-          });
+          console.error('Direct scraping parse error:', parseError);
+          resolve(null);
         }
       });
     });
     
-    req.on('error', (error) => {
-      console.error('Request error:', error);
-      reject(error);
+    req.on('error', () => resolve(null));
+    req.setTimeout(10000, () => {
+      req.abort();
+      resolve(null);
     });
     
-    req.setTimeout(15000, () => { // Increased timeout
+    req.end();
+  });
+}
+
+async function tryAlternativeEndpoints(asin) {
+  // Try mobile Amazon which is sometimes less protected
+  const { parse } = require('node-html-parser');
+  
+  return new Promise((resolve) => {
+    const options = {
+      hostname: 'm.amazon.com',
+      path: `/dp/${asin}`,
+      method: 'GET',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_7_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.2 Mobile/15E148 Safari/604.1',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5'
+      }
+    };
+
+    const req = https.request(options, (res) => {
+      let data = '';
+      
+      res.on('data', (chunk) => {
+        data += chunk;
+      });
+      
+      res.on('end', () => {
+        try {
+          if (data.includes('Robot Check') || data.length < 500) {
+            resolve(null);
+            return;
+          }
+          
+          const root = parse(data);
+          
+          // Mobile-specific selectors
+          let title = '';
+          const mobileTitleSelectors = [
+            '#feature-bullets h1',
+            '.cr-original-review-text',
+            'h1',
+            '.product-title'
+          ];
+          
+          for (const selector of mobileTitleSelectors) {
+            const element = root.querySelector(selector);
+            if (element && element.text.trim() && element.text.trim().length > 10) {
+              title = element.text.trim()
+                .replace(/\s+/g, ' ')
+                .replace(/\s*-\s*Amazon\.com$/, '')
+                .trim();
+              break;
+            }
+          }
+          
+          resolve({
+            title: title || null,
+            image: null,
+            price: '',
+            asin: asin
+          });
+          
+        } catch (e) {
+          resolve(null);
+        }
+      });
+    });
+    
+    req.on('error', () => resolve(null));
+    req.setTimeout(8000, () => {
       req.abort();
-      reject(new Error('Scraping request timeout'));
+      resolve(null);
+    });
+    
+    req.end();
+  });
+}
+
+function enhanceImageQuality(imageUrl) {
+  if (!imageUrl) return imageUrl;
+  
+  // Amazon image URL manipulation for higher quality
+  return imageUrl
+    // Remove all size restrictions
+    .replace(/\._[A-Z0-9,_]*\./g, '._SL1500_.')
+    .replace(/\._SX\d+_/g, '._SX1500_')
+    .replace(/\._SY\d+_/g, '._SY1500_')
+    .replace(/\._AC_UL\d+_/g, '._AC_UL1500_')
+    .replace(/\._AC_UX\d+_/g, '._AC_UX1500_')
+    .replace(/\._AC_UY\d+_/g, '._AC_UY1500_')
+    .replace(/\._SS\d+_/g, '._SL1500_.')
+    // Remove compression parameters
+    .replace(/,\d+_/g, '_')
+    // Ensure we get full resolution
+    .replace(/\._CR\d+,\d+,\d+,\d+_/g, '')
+    .replace(/\._PIbundle-\d+,TopRight,\d+,\d+_/g, '');
+}
+
+async function enhanceWithAmazonImages(asin) {
+  // Generate multiple potential high-quality image URLs
+  const potentialImages = [
+    `https://images-na.ssl-images-amazon.com/images/P/${asin}.01._SCLZZZZZZZ_SX500_.jpg`,
+    `https://images-na.ssl-images-amazon.com/images/P/${asin}.01._SL1500_.jpg`,
+    `https://m.media-amazon.com/images/I/${asin}._SL1500_.jpg`,
+    `https://images-na.ssl-images-amazon.com/images/P/${asin}.01._AC_SL1500_.jpg`,
+    `https://images-na.ssl-images-amazon.com/images/P/${asin}.01.L.jpg`
+  ];
+  
+  // Test which image URL works
+  for (const imageUrl of potentialImages) {
+    const works = await testImageUrl(imageUrl);
+    if (works) {
+      return {
+        title: `Amazon Product ${asin}`,
+        image: imageUrl,
+        price: '',
+        asin: asin
+      };
+    }
+  }
+  
+  // Final fallback
+  return {
+    title: `Amazon Product ${asin}`,
+    image: `https://images-na.ssl-images-amazon.com/images/P/${asin}.01._SL1500_.jpg`,
+    price: '',
+    asin: asin
+  };
+}
+
+function testImageUrl(url) {
+  return new Promise((resolve) => {
+    const urlParts = new URL(url);
+    const options = {
+      hostname: urlParts.hostname,
+      path: urlParts.pathname,
+      method: 'HEAD'
+    };
+
+    const req = https.request(options, (res) => {
+      resolve(res.statusCode === 200);
+    });
+    
+    req.on('error', () => resolve(false));
+    req.setTimeout(3000, () => {
+      req.abort();
+      resolve(false);
     });
     
     req.end();
@@ -951,4 +1074,5 @@ function generateErrorHTML() {
     </html>
   `;
 }
+
 
