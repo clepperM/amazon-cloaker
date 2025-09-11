@@ -42,6 +42,12 @@ exports.handler = async (event, context) => {
         statusCode: 200,
         headers: {
           'Content-Type': 'text/html',
+          console.log('=== CREDENTIAL DEBUG ===');
+console.log('ACCESS_KEY length:', ACCESS_KEY ? ACCESS_KEY.length : 'MISSING');
+console.log('SECRET_KEY length:', SECRET_KEY ? SECRET_KEY.length : 'MISSING');
+console.log('ASSOCIATE_TAG:', ASSOCIATE_TAG);
+console.log('ACCESS_KEY first 4 chars:', ACCESS_KEY ? ACCESS_KEY.substring(0, 4) + '...' : 'MISSING');
+console.log('========================');
         },
         body: html
       };
@@ -865,3 +871,4 @@ function generateErrorHTML() {
     </html>
   `;
 }
+
