@@ -42,12 +42,6 @@ exports.handler = async (event, context) => {
         statusCode: 200,
         headers: {
           'Content-Type': 'text/html',
-          console.log('=== CREDENTIAL DEBUG ===');
-console.log('ACCESS_KEY length:', ACCESS_KEY ? ACCESS_KEY.length : 'MISSING');
-console.log('SECRET_KEY length:', SECRET_KEY ? SECRET_KEY.length : 'MISSING');
-console.log('ASSOCIATE_TAG:', ASSOCIATE_TAG);
-console.log('ACCESS_KEY first 4 chars:', ACCESS_KEY ? ACCESS_KEY.substring(0, 4) + '...' : 'MISSING');
-console.log('========================');
         },
         body: html
       };
@@ -210,9 +204,19 @@ async function fetchAmazonProductAPI(asin) {
           const response = JSON.parse(data);
           console.log('PA-API 5.0 Response:', JSON.stringify(response, null, 2));
           
+          // Check for errors in response
           if (response.Errors && response.Errors.length > 0) {
             console.error('PA-API 5.0 Error:', response.Errors[0].Message);
+            console.error('Error Code:', response.Errors[0].Code);
             reject(new Error(`PA-API Error: ${response.Errors[0].Message}`));
+            return;
+          }
+          
+          // Check for internal failure
+          if (response.Output && response.Output.__type && response.Output.__type.includes('InternalFailure')) {
+            console.error('PA-API 5.0 Internal Failure - likely authentication issue');
+            console.error('Check your credentials: ACCESS_KEY, SECRET_KEY, and ASSOCIATE_TAG');
+            reject(new Error('PA-API Authentication Failed - Check your credentials'));
             return;
           }
           
@@ -288,7 +292,7 @@ function parsePAAPI5Response(response, asin) {
   };
 }
 
-// Fallback scraping function (your existing implementation)
+// Fallback scraping function
 async function fetchAmazonProductScraping(asin) {
   const { parse } = require('node-html-parser');
   
@@ -328,7 +332,6 @@ async function fetchAmazonProductScraping(asin) {
           // Check if Amazon blocked the request
           if (data.includes('Robot Check') || data.includes('blocked') || data.length < 1000) {
             console.log('Amazon blocked scraping request for ASIN:', asin);
-            // Return fallback data instead of failing
             resolve({
               title: `Amazon Product ${asin}`,
               image: `https://images-na.ssl-images-amazon.com/images/P/${asin}.01._SL1500_.jpg`,
@@ -430,7 +433,6 @@ async function fetchAmazonProductScraping(asin) {
           
         } catch (parseError) {
           console.error('Parse error:', parseError);
-          // Return fallback instead of rejecting
           resolve({
             title: `Amazon Product ${asin}`,
             image: `https://images-na.ssl-images-amazon.com/images/P/${asin}.01._SL1500_.jpg`,
@@ -480,20 +482,18 @@ function generateHTML(productData, asin) {
     
     <title>${productData.title} - OneLastLink</title>
     
-    <!-- Custom Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     
     <style>
         :root {
-            /* OneLastLink Brand Colors */
-            --brand-black: #000000;        /* Primary black */
-            --brand-blue: #0F9AA0;         /* Blue */
-            --brand-red: #C43A3A;          /* Red */
-            --brand-yellow: #FFD400;       /* Yellow */
-            --brand-light: #f8fafc;        /* Light gray */
-            --text-primary: #ffffff;       /* White text on black */
-            --text-secondary: #a0a0a0;     /* Light gray text */
-            --success: #0F9AA0;            /* Use brand blue for success */
+            --brand-black: #000000;
+            --brand-blue: #0F9AA0;
+            --brand-red: #C43A3A;
+            --brand-yellow: #FFD400;
+            --brand-light: #f8fafc;
+            --text-primary: #ffffff;
+            --text-secondary: #a0a0a0;
+            --success: #0F9AA0;
         }
         
         * {
@@ -514,7 +514,6 @@ function generateHTML(productData, asin) {
             overflow: hidden;
         }
         
-        /* Animated background elements - subtle on black */
         body::before {
             content: '';
             position: absolute;
@@ -702,7 +701,6 @@ function generateHTML(productData, asin) {
             fill: var(--brand-blue);
         }
         
-        /* Mobile responsive */
         @media (max-width: 480px) {
             .container {
                 padding: 24px;
@@ -723,7 +721,6 @@ function generateHTML(productData, asin) {
             }
         }
         
-        /* Pulse animation for countdown */
         .countdown {
             animation: pulse 1s ease-in-out infinite;
         }
@@ -871,4 +868,5 @@ function generateErrorHTML() {
     </html>
   `;
 }
+
 
