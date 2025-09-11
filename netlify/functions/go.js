@@ -124,7 +124,7 @@ function extractASINFromURL(url) {
   return null;
 }
 
-// Amazon Product Advertising API 5.0 Implementation - CORRECTED
+// CORRECTED Amazon Product Advertising API 5.0 Implementation
 async function fetchAmazonProductAPI(asin) {
   const method = 'POST';
   const service = 'ProductAdvertisingAPI';
@@ -133,7 +133,7 @@ async function fetchAmazonProductAPI(asin) {
   const host = 'webservices.amazon.com';
   const endpoint = `https://${host}`;
   
-  // Request payload for PA-API 5.0
+  // Request payload
   const payload = JSON.stringify({
     ItemIds: [asin],
     Resources: [
@@ -142,65 +142,68 @@ async function fetchAmazonProductAPI(asin) {
       'Images.Primary.Large',
       'Images.Primary.Medium',
       'Images.Primary.Small',
-      'Offers.Listings.Price',
-      'ItemInfo.ProductInfo'
+      'Offers.Listings.Price'
     ],
     PartnerTag: PARTNER_TAG,
     PartnerType: 'Associates',
     Marketplace: 'www.amazon.com'
   });
   
-  // Create timestamp FIRST - use consistent timing
-  const timestamp = new Date();
-  const dateStamp = timestamp.toISOString().substring(0, 10).replace(/-/g, '');
-  const amzDate = timestamp.toISOString().replace(/[:-]|\.\d{3}/g, '');
+  // Create timestamp - CRITICAL: Use consistent ISO format
+  const now = new Date();
+  const amzDate = now.toISOString().replace(/[:-]|\.\d{3}/g, '');
+  const dateStamp = amzDate.substring(0, 8);
   
-  // Create AWS Signature Version 4 - FIXED canonical request
+  console.log('Timestamp:', amzDate);
+  console.log('DateStamp:', dateStamp);
+  
+  // CORRECTED: Canonical request with exact formatting
   const canonicalUri = '/paapi5/getitems';
   const canonicalQuerystring = '';
-  // CRITICAL: Headers must be in alphabetical order and lowercase
-  const canonicalHeaders = [
-    `content-type:application/json; charset=utf-8`,
-    `host:${host}`,
-    `x-amz-date:${amzDate}`,
-    `x-amz-target:${target}`
-  ].join('\n') + '\n';
   
+  // Headers must be exact - no extra spaces, lowercase, alphabetical order
+  const canonicalHeaders = `content-type:application/json; charset=utf-8\nhost:${host}\nx-amz-date:${amzDate}\nx-amz-target:${target}\n`;
   const signedHeaders = 'content-type;host;x-amz-date;x-amz-target';
+  
+  // Hash payload with exact UTF-8 encoding
   const payloadHash = crypto.createHash('sha256').update(payload, 'utf8').digest('hex');
   
-  const canonicalRequest = [
-    method,
-    canonicalUri,
-    canonicalQuerystring,
-    canonicalHeaders,
-    signedHeaders,
-    payloadHash
-  ].join('\n');
+  console.log('Payload Hash:', payloadHash);
   
-  console.log('Canonical Request:', canonicalRequest);
+  // Canonical request - each element on new line
+  const canonicalRequest = `${method}\n${canonicalUri}\n${canonicalQuerystring}\n${canonicalHeaders}\n${signedHeaders}\n${payloadHash}`;
   
+  console.log('Canonical Request:');
+  console.log(canonicalRequest);
+  console.log('---');
+  
+  // String to sign
   const credentialScope = `${dateStamp}/${region}/${service}/aws4_request`;
-  const stringToSign = [
-    'AWS4-HMAC-SHA256',
-    amzDate,
-    credentialScope,
-    crypto.createHash('sha256').update(canonicalRequest, 'utf8').digest('hex')
-  ].join('\n');
+  const canonicalRequestHash = crypto.createHash('sha256').update(canonicalRequest, 'utf8').digest('hex');
+  const stringToSign = `AWS4-HMAC-SHA256\n${amzDate}\n${credentialScope}\n${canonicalRequestHash}`;
   
-  console.log('String to Sign:', stringToSign);
+  console.log('String to Sign:');
+  console.log(stringToSign);
+  console.log('---');
   
-  // Create signing key - FIXED: Use binary encoding properly
-  const kDate = crypto.createHmac('sha256', `AWS4${SECRET_KEY}`).update(dateStamp).digest();
-  const kRegion = crypto.createHmac('sha256', kDate).update(region).digest();
-  const kService = crypto.createHmac('sha256', kRegion).update(service).digest();
-  const kSigning = crypto.createHmac('sha256', kService).update('aws4_request').digest();
+  // CORRECTED: Signing key derivation - exact binary operations
+  function getSignatureKey(key, dateStamp, regionName, serviceName) {
+    const kDate = crypto.createHmac('sha256', 'AWS4' + key).update(dateStamp).digest();
+    const kRegion = crypto.createHmac('sha256', kDate).update(regionName).digest();
+    const kService = crypto.createHmac('sha256', kRegion).update(serviceName).digest();
+    const kSigning = crypto.createHmac('sha256', kService).update('aws4_request').digest();
+    return kSigning;
+  }
   
-  const signature = crypto.createHmac('sha256', kSigning).update(stringToSign, 'utf8').digest('hex');
+  const signingKey = getSignatureKey(SECRET_KEY, dateStamp, region, service);
+  const signature = crypto.createHmac('sha256', signingKey).update(stringToSign, 'utf8').digest('hex');
   
+  console.log('Signature:', signature);
+  
+  // Authorization header
   const authorization = `AWS4-HMAC-SHA256 Credential=${ACCESS_KEY}/${credentialScope}, SignedHeaders=${signedHeaders}, Signature=${signature}`;
   
-  console.log('Authorization Header:', authorization);
+  console.log('Authorization:', authorization);
   
   return new Promise((resolve, reject) => {
     const options = {
@@ -210,10 +213,11 @@ async function fetchAmazonProductAPI(asin) {
         'Content-Type': 'application/json; charset=utf-8',
         'Host': host,
         'X-Amz-Date': amzDate,
-        'X-Amz-Target': target,
-        'Content-Length': Buffer.byteLength(payload, 'utf8')
+        'X-Amz-Target': target
       }
     };
+
+    console.log('Request Headers:', options.headers);
 
     const req = https.request(endpoint + canonicalUri, options, (res) => {
       let data = '';
@@ -223,52 +227,59 @@ async function fetchAmazonProductAPI(asin) {
       });
       
       res.on('end', () => {
-        console.log('PA-API 5.0 Response Status:', res.statusCode);
-        console.log('PA-API 5.0 Response Headers:', res.headers);
+        console.log('PA-API Response Status:', res.statusCode);
+        console.log('PA-API Response Headers:', res.headers);
+        console.log('PA-API Raw Response:', data);
         
         try {
           const response = JSON.parse(data);
-          console.log('PA-API 5.0 Response:', JSON.stringify(response, null, 2));
           
-          // Check for errors in response
+          // Check for signature errors specifically
           if (response.Errors && response.Errors.length > 0) {
-            console.error('PA-API 5.0 Error:', response.Errors[0].Message);
-            console.error('Error Code:', response.Errors[0].Code);
-            reject(new Error(`PA-API Error: ${response.Errors[0].Message}`));
+            const error = response.Errors[0];
+            console.error('PA-API Error Code:', error.Code);
+            console.error('PA-API Error Message:', error.Message);
+            
+            if (error.Code === 'InvalidSignature') {
+              console.error('SIGNATURE DEBUG INFO:');
+              console.error('ACCESS_KEY starts with:', ACCESS_KEY ? ACCESS_KEY.substring(0, 4) + '...' : 'MISSING');
+              console.error('SECRET_KEY length:', SECRET_KEY ? SECRET_KEY.length : 'MISSING');
+              console.error('PARTNER_TAG:', PARTNER_TAG);
+            }
+            
+            reject(new Error(`PA-API Error: ${error.Code} - ${error.Message}`));
             return;
           }
           
           // Check for internal failure
           if (response.Output && response.Output.__type && response.Output.__type.includes('InternalFailure')) {
-            console.error('PA-API 5.0 Internal Failure - likely authentication issue');
-            console.error('Check your credentials: ACCESS_KEY, SECRET_KEY, and PARTNER_TAG');
-            console.error('Full response:', JSON.stringify(response, null, 2));
-            reject(new Error('PA-API Authentication Failed - Check your credentials'));
+            console.error('PA-API Internal Failure');
+            reject(new Error('PA-API Internal Failure'));
             return;
           }
           
           const productData = parsePAAPI5Response(response, asin);
-          console.log('Parsed product data:', productData);
           resolve(productData);
+          
         } catch (parseError) {
-          console.error('PA-API 5.0 Parse error:', parseError);
-          console.error('Raw response:', data);
+          console.error('Parse error:', parseError);
+          console.error('Raw response for debugging:', data);
           reject(parseError);
         }
       });
     });
     
     req.on('error', (error) => {
-      console.error('PA-API 5.0 Request error:', error);
+      console.error('Request error:', error);
       reject(error);
     });
     
     req.setTimeout(10000, () => {
       req.abort();
-      reject(new Error('PA-API 5.0 request timeout'));
+      reject(new Error('Request timeout'));
     });
     
-    req.write(payload, 'utf8');
+    req.write(payload);
     req.end();
   });
 }
@@ -1074,5 +1085,6 @@ function generateErrorHTML() {
     </html>
   `;
 }
+
 
 
