@@ -764,4 +764,104 @@ function generateHTML(productData, asin) {
         <div class="security-badge">
             <div class="security-text">
                 <svg class="shield-icon" viewBox="0 0 24 24">
-                    <path d="M12,1L3,5V11C3,16.55 6.84,21.74 12,23C17.16,21.74 21,16.55 21,11V5L12,1M10,17L6,13L7.41,11.59L10,14.17L16.59,7.58L18,
+                    <path d="M12,1L3,5V11C3,16.55 6.84,21.74 12,23C17.16,21.74 21,16.55 21,11V5L12,1M10,17L6,13L7.41,11.59L10,14.17L16.59,7.58L18,9L10,17Z"/>
+                </svg>
+                Secured by One Last Link • Trusted affiliate partner
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        let countdown = 3;
+        const countdownElement = document.getElementById('countdown');
+        
+        const timer = setInterval(() => {
+            countdown--;
+            countdownElement.textContent = countdown;
+            
+            if (countdown <= 0) {
+                clearInterval(timer);
+                window.location.href = '${affiliateUrl}';
+            }
+        }, 1000);
+    </script>
+</body>
+</html>`;
+}
+
+function generateFallbackHTML(asin) {
+  const affiliateUrl = `https://www.amazon.com/dp/${asin}?tag=${ASSOCIATE_TAG}`;
+  const fallbackImage = `https://images-na.ssl-images-amazon.com/images/P/${asin}.01._SL1500_.jpg`;
+  
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <meta property="og:title" content="Amazing Amazon Deal">
+    <meta property="og:description" content="Check out this great deal I found on Amazon!">
+    <meta property="og:image" content="${fallbackImage}">
+    <meta property="og:url" content="https://go.onelastlink.com/${asin}">
+    <meta property="og:type" content="product">
+    <meta property="og:site_name" content="amazon.com">
+    
+    <title>Amazon Deal - ${asin}</title>
+    
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #000000;
+            color: white;
+            text-align: center;
+            padding: 50px;
+            margin: 0;
+        }
+        .container {
+            max-width: 400px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 30px;
+            border-radius: 15px;
+        }
+        .button {
+            display: inline-block;
+            background: #0F9AA0;
+            color: white;
+            padding: 12px 24px;
+            text-decoration: none;
+            border-radius: 5px;
+            font-weight: bold;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>🎯 Redirecting to Amazon...</h2>
+        <p>Taking you to your deal...</p>
+        <a href="${affiliateUrl}" class="button">Go to Amazon</a>
+    </div>
+    <script>
+        setTimeout(() => {
+            window.location.href = '${affiliateUrl}';
+        }, 2000);
+    </script>
+</body>
+</html>`;
+}
+
+function generateErrorHTML() {
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head><title>Invalid Link</title></head>
+    <body style="text-align: center; padding: 50px; font-family: Arial, sans-serif;">
+      <h2>❌ Invalid Amazon Link</h2>
+      <p>Please use one of these formats:</p>
+      <p><code>go.onelastlink.com/B09P21T2GC</code></p>
+      <p><code>go.onelastlink.com/?url=https://amazon.com/dp/B09P21T2GC</code></p>
+    </body>
+    </html>
+  `;
+}
