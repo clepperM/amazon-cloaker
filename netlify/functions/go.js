@@ -124,7 +124,7 @@ function extractASINFromURL(url) {
   return null;
 }
 
-// Amazon Product Advertising API 5.0 Implementation
+// Amazon Product Advertising API 5.0 Implementation - CORRECTED
 async function fetchAmazonProductAPI(asin) {
   const method = 'POST';
   const service = 'ProductAdvertisingAPI';
@@ -133,7 +133,7 @@ async function fetchAmazonProductAPI(asin) {
   const host = 'webservices.amazon.com';
   const endpoint = `https://${host}`;
   
-  // Request payload for PA-API 5.0 - FIXED: Use PARTNER_TAG instead of ASSOCIATE_TAG
+  // Request payload for PA-API 5.0
   const payload = JSON.stringify({
     ItemIds: [asin],
     Resources: [
@@ -150,31 +150,57 @@ async function fetchAmazonProductAPI(asin) {
     Marketplace: 'www.amazon.com'
   });
   
-  // Create AWS Signature Version 4
-  const canonicalUri = '/paapi5/getitems';
-  const canonicalQuerystring = '';
-  const canonicalHeaders = `content-type:application/json; charset=utf-8\nhost:${host}\nx-amz-target:${target}\n`;
-  const signedHeaders = 'content-type;host;x-amz-target';
-  const payloadHash = crypto.createHash('sha256').update(payload).digest('hex');
-  
-  const canonicalRequest = `${method}\n${canonicalUri}\n${canonicalQuerystring}\n${canonicalHeaders}\n${signedHeaders}\n${payloadHash}`;
-  
+  // Create timestamp FIRST - use consistent timing
   const timestamp = new Date();
-  const dateStamp = timestamp.toISOString().split('T')[0].replace(/-/g, '');
+  const dateStamp = timestamp.toISOString().substring(0, 10).replace(/-/g, '');
   const amzDate = timestamp.toISOString().replace(/[:-]|\.\d{3}/g, '');
   
-  const credentialScope = `${dateStamp}/${region}/${service}/aws4_request`;
-  const stringToSign = `AWS4-HMAC-SHA256\n${amzDate}\n${credentialScope}\n${crypto.createHash('sha256').update(canonicalRequest).digest('hex')}`;
+  // Create AWS Signature Version 4 - FIXED canonical request
+  const canonicalUri = '/paapi5/getitems';
+  const canonicalQuerystring = '';
+  // CRITICAL: Headers must be in alphabetical order and lowercase
+  const canonicalHeaders = [
+    `content-type:application/json; charset=utf-8`,
+    `host:${host}`,
+    `x-amz-date:${amzDate}`,
+    `x-amz-target:${target}`
+  ].join('\n') + '\n';
   
-  // Create signing key
+  const signedHeaders = 'content-type;host;x-amz-date;x-amz-target';
+  const payloadHash = crypto.createHash('sha256').update(payload, 'utf8').digest('hex');
+  
+  const canonicalRequest = [
+    method,
+    canonicalUri,
+    canonicalQuerystring,
+    canonicalHeaders,
+    signedHeaders,
+    payloadHash
+  ].join('\n');
+  
+  console.log('Canonical Request:', canonicalRequest);
+  
+  const credentialScope = `${dateStamp}/${region}/${service}/aws4_request`;
+  const stringToSign = [
+    'AWS4-HMAC-SHA256',
+    amzDate,
+    credentialScope,
+    crypto.createHash('sha256').update(canonicalRequest, 'utf8').digest('hex')
+  ].join('\n');
+  
+  console.log('String to Sign:', stringToSign);
+  
+  // Create signing key - FIXED: Use binary encoding properly
   const kDate = crypto.createHmac('sha256', `AWS4${SECRET_KEY}`).update(dateStamp).digest();
   const kRegion = crypto.createHmac('sha256', kDate).update(region).digest();
   const kService = crypto.createHmac('sha256', kRegion).update(service).digest();
   const kSigning = crypto.createHmac('sha256', kService).update('aws4_request').digest();
   
-  const signature = crypto.createHmac('sha256', kSigning).update(stringToSign).digest('hex');
+  const signature = crypto.createHmac('sha256', kSigning).update(stringToSign, 'utf8').digest('hex');
   
   const authorization = `AWS4-HMAC-SHA256 Credential=${ACCESS_KEY}/${credentialScope}, SignedHeaders=${signedHeaders}, Signature=${signature}`;
+  
+  console.log('Authorization Header:', authorization);
   
   return new Promise((resolve, reject) => {
     const options = {
@@ -185,7 +211,7 @@ async function fetchAmazonProductAPI(asin) {
         'Host': host,
         'X-Amz-Date': amzDate,
         'X-Amz-Target': target,
-        'Content-Length': payload.length
+        'Content-Length': Buffer.byteLength(payload, 'utf8')
       }
     };
 
@@ -216,6 +242,7 @@ async function fetchAmazonProductAPI(asin) {
           if (response.Output && response.Output.__type && response.Output.__type.includes('InternalFailure')) {
             console.error('PA-API 5.0 Internal Failure - likely authentication issue');
             console.error('Check your credentials: ACCESS_KEY, SECRET_KEY, and PARTNER_TAG');
+            console.error('Full response:', JSON.stringify(response, null, 2));
             reject(new Error('PA-API Authentication Failed - Check your credentials'));
             return;
           }
@@ -241,7 +268,7 @@ async function fetchAmazonProductAPI(asin) {
       reject(new Error('PA-API 5.0 request timeout'));
     });
     
-    req.write(payload);
+    req.write(payload, 'utf8');
     req.end();
   });
 }
@@ -924,3 +951,4 @@ function generateErrorHTML() {
     </html>
   `;
 }
+
