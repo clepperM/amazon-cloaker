@@ -1,10 +1,10 @@
 const crypto = require('crypto');
 const https = require('https');
 
-// Amazon API Configuration - Using Netlify-compatible variable names
-const ACCESS_KEY = process.env.PAAPI_ACCESS_KEY || process.env.AMAZON_ACCESS_KEY;
-const SECRET_KEY = process.env.PAAPI_SECRET_KEY || process.env.AMAZON_SECRET_KEY;
-const ASSOCIATE_TAG = process.env.AMAZON_ASSOCIATE_TAG || 'onelastlynx-20';
+// Amazon API Configuration - Using correct variable names
+const ACCESS_KEY = process.env.ACCESS_KEY;
+const SECRET_KEY = process.env.SECRET_KEY;
+const PARTNER_TAG = process.env.PARTNER_TAG || 'onelastlynx-20';
 
 exports.handler = async (event, context) => {
   let asin = null;
@@ -133,7 +133,7 @@ async function fetchAmazonProductAPI(asin) {
   const host = 'webservices.amazon.com';
   const endpoint = `https://${host}`;
   
-  // Request payload for PA-API 5.0
+  // Request payload for PA-API 5.0 - FIXED: Use PARTNER_TAG instead of ASSOCIATE_TAG
   const payload = JSON.stringify({
     ItemIds: [asin],
     Resources: [
@@ -145,7 +145,7 @@ async function fetchAmazonProductAPI(asin) {
       'Offers.Listings.Price',
       'ItemInfo.ProductInfo'
     ],
-    PartnerTag: ASSOCIATE_TAG,
+    PartnerTag: PARTNER_TAG,
     PartnerType: 'Associates',
     Marketplace: 'www.amazon.com'
   });
@@ -215,7 +215,7 @@ async function fetchAmazonProductAPI(asin) {
           // Check for internal failure
           if (response.Output && response.Output.__type && response.Output.__type.includes('InternalFailure')) {
             console.error('PA-API 5.0 Internal Failure - likely authentication issue');
-            console.error('Check your credentials: ACCESS_KEY, SECRET_KEY, and ASSOCIATE_TAG');
+            console.error('Check your credentials: ACCESS_KEY, SECRET_KEY, and PARTNER_TAG');
             reject(new Error('PA-API Authentication Failed - Check your credentials'));
             return;
           }
@@ -292,15 +292,16 @@ function parsePAAPI5Response(response, asin) {
   };
 }
 
-// Fallback scraping function
+// IMPROVED Fallback scraping function with better selectors and image quality
 async function fetchAmazonProductScraping(asin) {
   const { parse } = require('node-html-parser');
   
-  // Try multiple User-Agent strings
+  // Try multiple User-Agent strings - more recent ones
   const userAgents = [
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:89.0) Gecko/20100101 Firefox/89.0'
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0',
+    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
   ];
   
   const randomUserAgent = userAgents[Math.floor(Math.random() * userAgents.length)];
@@ -312,11 +313,15 @@ async function fetchAmazonProductScraping(asin) {
       method: 'GET',
       headers: {
         'User-Agent': randomUserAgent,
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.5',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9',
         'Accept-Encoding': 'gzip, deflate, br',
         'Connection': 'keep-alive',
-        'Upgrade-Insecure-Requests': '1'
+        'Upgrade-Insecure-Requests': '1',
+        'Sec-Fetch-Dest': 'document',
+        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-Site': 'none',
+        'Cache-Control': 'max-age=0'
       }
     };
 
@@ -343,25 +348,34 @@ async function fetchAmazonProductScraping(asin) {
           
           const root = parse(data);
           
-          // Extract product title with more selectors
+          // IMPROVED: Extract product title with more selectors and better cleaning
           let title = '';
           const titleSelectors = [
             '#productTitle',
+            '[data-automation-id="product-title"]',
             '.product-title', 
             'h1.a-size-large',
             'h1[data-automation-id="product-title"]',
-            '.a-size-large.product-title-word-break'
+            '.a-size-large.product-title-word-break',
+            'span#productTitle',
+            'h1.a-size-base-plus'
           ];
           
           for (const selector of titleSelectors) {
             const element = root.querySelector(selector);
             if (element && element.text.trim()) {
               title = element.text.trim();
+              // Clean up title - remove extra whitespace and common Amazon suffixes
+              title = title
+                .replace(/\s+/g, ' ')
+                .replace(/\s*-\s*Amazon\.com$/, '')
+                .replace(/\s*\|\s*Amazon\.com$/, '')
+                .trim();
               break;
             }
           }
           
-          // Extract product image with more attempts
+          // IMPROVED: Extract product image with better quality and more attempts
           let image = '';
           const imageSelectors = [
             '#landingImage',
@@ -369,7 +383,9 @@ async function fetchAmazonProductScraping(asin) {
             'img[data-old-hires]',
             '.imgTagWrapper img',
             '#main-image',
-            '.a-button-thumbnail img'
+            '.a-button-thumbnail img',
+            'img[src*="images-na.ssl-images-amazon.com"]',
+            'img[data-a-dynamic-image]'
           ];
           
           for (const selector of imageSelectors) {
@@ -380,40 +396,56 @@ async function fetchAmazonProductScraping(asin) {
                             element.getAttribute('data-a-dynamic-image') ||
                             element.getAttribute('data-src');
                             
-              if (rawImage && rawImage.includes('images-na.ssl-images-amazon.com')) {
+              if (rawImage && (rawImage.includes('images-na.ssl-images-amazon.com') || rawImage.includes('m.media-amazon.com'))) {
                 // Parse dynamic image JSON if present
                 if (rawImage.startsWith('{')) {
                   try {
                     const imageData = JSON.parse(rawImage);
                     const imageUrls = Object.keys(imageData);
-                    image = imageUrls[imageUrls.length - 1];
+                    // Get the largest image available
+                    image = imageUrls.sort((a, b) => {
+                      const aSize = parseInt(a.match(/_SX(\d+)_/) || a.match(/(\d+)x\d+/) || [0, 0])[1] || 0;
+                      const bSize = parseInt(b.match(/_SX(\d+)_/) || b.match(/(\d+)x\d+/) || [0, 0])[1] || 0;
+                      return bSize - aSize;
+                    })[0];
                   } catch (e) {
-                    const match = rawImage.match(/"([^"]*\.jpg[^"]*)"/);
+                    const match = rawImage.match(/"([^"]*\.(?:jpg|jpeg|png|webp)[^"]*)"/i);
                     if (match) image = match[1];
                   }
                 } else {
                   image = rawImage;
                 }
                 
-                // Force higher resolution
-                if (image.includes('amazon.com') || image.includes('ssl-images-amazon')) {
+                // IMPROVED: Force higher resolution and better quality
+                if (image && (image.includes('amazon.com') || image.includes('ssl-images-amazon'))) {
                   image = image
-                    .replace(/\._[A-Z0-9,_]*\./, '._AC_SL1500_.')
-                    .replace(/\._SX\d+_/, '._SX1000_')
-                    .replace(/\._SY\d+_/, '._SY1000_');
+                    // Remove size restrictions and force larger images
+                    .replace(/\._[A-Z0-9,_]*\./g, '._AC_SL1500_.')
+                    .replace(/\._SX\d+_/g, '._SX1500_')
+                    .replace(/\._SY\d+_/g, '._SY1500_')
+                    .replace(/\._AC_UL\d+_/g, '._AC_UL1500_')
+                    .replace(/\._AC_UY\d+_/g, '._AC_UY1500_')
+                    // Ensure we get the highest quality
+                    .replace(/\._SS\d+_/g, '._SL1500_')
+                    // Remove compression artifacts parameters
+                    .replace(/,\d+_/g, '_');
                 }
                 break;
               }
             }
           }
           
-          // Extract price
+          // IMPROVED: Extract price with more selectors
           let price = '';
           const priceSelectors = [
+            '.a-price.a-text-price.a-size-medium.apexPriceToPay .a-offscreen',
             '.a-price .a-offscreen',
             '.a-price-whole',
             '.a-price-symbol + .a-price-whole',
-            '#price_inside_buybox'
+            '#price_inside_buybox',
+            '.a-price.a-text-price .a-offscreen',
+            '[data-automation-id="list-price"] .a-offscreen',
+            '.a-price-current .a-offscreen'
           ];
           
           for (const selector of priceSelectors) {
@@ -424,12 +456,27 @@ async function fetchAmazonProductScraping(asin) {
             }
           }
           
-          resolve({
+          // If no price found, try one more method
+          if (!price) {
+            const priceElement = root.querySelector('.a-price');
+            if (priceElement) {
+              const priceText = priceElement.text;
+              const priceMatch = priceText.match(/\$[\d,]+\.?\d*/);
+              if (priceMatch) {
+                price = priceMatch[0];
+              }
+            }
+          }
+          
+          const result = {
             title: title || `Amazon Product ${asin}`,
             image: image || `https://images-na.ssl-images-amazon.com/images/P/${asin}.01._SL1500_.jpg`,
             price: price,
             asin: asin
-          });
+          };
+          
+          console.log('Scraping result:', result);
+          resolve(result);
           
         } catch (parseError) {
           console.error('Parse error:', parseError);
@@ -448,7 +495,7 @@ async function fetchAmazonProductScraping(asin) {
       reject(error);
     });
     
-    req.setTimeout(10000, () => {
+    req.setTimeout(15000, () => { // Increased timeout
       req.abort();
       reject(new Error('Scraping request timeout'));
     });
@@ -458,7 +505,7 @@ async function fetchAmazonProductScraping(asin) {
 }
 
 function generateHTML(productData, asin) {
-  const affiliateUrl = `https://www.amazon.com/dp/${asin}?tag=${ASSOCIATE_TAG}`;
+  const affiliateUrl = `https://www.amazon.com/dp/${asin}?tag=${PARTNER_TAG}`;
   
   return `<!DOCTYPE html>
 <html lang="en">
@@ -487,13 +534,14 @@ function generateHTML(productData, asin) {
     <style>
         :root {
             --brand-black: #000000;
-            --brand-blue: #0F9AA0;
-            --brand-red: #C43A3A;
+            --brand-blue: #00E5E0;
+            --brand-red: #FF2E6C;
             --brand-yellow: #FFD400;
-            --brand-light: #f8fafc;
+            --brand-light: #1a1a1a;
             --text-primary: #ffffff;
             --text-secondary: #a0a0a0;
-            --success: #0F9AA0;
+            --card-bg: rgba(26, 26, 26, 0.95);
+            --card-border: rgba(0, 229, 224, 0.1);
         }
         
         * {
@@ -521,7 +569,7 @@ function generateHTML(productData, asin) {
             left: -50%;
             width: 200%;
             height: 200%;
-            background: radial-gradient(circle, rgba(15, 154, 160, 0.05) 1px, transparent 1px);
+            background: radial-gradient(circle, rgba(0, 229, 224, 0.03) 1px, transparent 1px);
             background-size: 50px 50px;
             animation: float 20s infinite linear;
             pointer-events: none;
@@ -533,14 +581,15 @@ function generateHTML(productData, asin) {
         }
         
         .container {
-            background: rgba(255, 255, 255, 0.95);
+            background: var(--card-bg);
             backdrop-filter: blur(20px);
             border-radius: 24px;
             padding: 40px;
             text-align: center;
             box-shadow: 
-                0 25px 50px -12px rgba(0, 0, 0, 0.5),
-                0 0 0 1px rgba(15, 154, 160, 0.2);
+                0 25px 50px -12px rgba(0, 0, 0, 0.8),
+                0 0 0 1px var(--card-border),
+                0 0 20px rgba(0, 229, 224, 0.1);
             max-width: 500px;
             width: 100%;
             position: relative;
@@ -553,6 +602,7 @@ function generateHTML(productData, asin) {
             background: var(--brand-black);
             border-radius: 16px;
             display: inline-block;
+            border: 1px solid var(--card-border);
         }
         
         .brand-logo img {
@@ -566,21 +616,24 @@ function generateHTML(productData, asin) {
             color: var(--brand-blue);
             margin-bottom: 8px;
             letter-spacing: -0.025em;
+            text-shadow: 0 0 10px rgba(0, 229, 224, 0.3);
         }
         
         .brand-tagline {
             font-size: 14px;
-            color: var(--brand-blue);
+            color: var(--text-secondary);
             margin-bottom: 30px;
         }
         
         .product-card {
-            background: white;
+            background: rgba(0, 0, 0, 0.3);
             border-radius: 16px;
             padding: 24px;
             margin-bottom: 24px;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-            border: 1px solid rgba(0, 0, 0, 0.05);
+            box-shadow: 
+                0 4px 20px rgba(0, 0, 0, 0.5),
+                inset 0 1px 0 rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
         }
         
         .product-image {
@@ -589,14 +642,14 @@ function generateHTML(productData, asin) {
             object-fit: contain;
             border-radius: 12px;
             margin-bottom: 16px;
-            background: #f9fafb;
+            background: rgba(255, 255, 255, 0.05);
             padding: 8px;
         }
         
         .product-title {
             font-size: 18px;
             font-weight: 600;
-            color: var(--brand-black);
+            color: var(--text-primary);
             margin-bottom: 12px;
             line-height: 1.4;
             display: -webkit-box;
@@ -610,6 +663,7 @@ function generateHTML(productData, asin) {
             font-weight: 700;
             color: var(--brand-red);
             margin-bottom: 16px;
+            text-shadow: 0 0 10px rgba(255, 46, 108, 0.3);
         }
         
         .redirect-status {
@@ -621,7 +675,7 @@ function generateHTML(productData, asin) {
             padding: 16px;
             background: rgba(255, 212, 0, 0.1);
             border-radius: 12px;
-            border: 1px solid rgba(255, 212, 0, 0.3);
+            border: 1px solid rgba(255, 212, 0, 0.2);
         }
         
         .status-icon {
@@ -639,7 +693,7 @@ function generateHTML(productData, asin) {
         }
         
         .redirect-text {
-            color: var(--brand-black);
+            color: var(--text-primary);
             font-weight: 500;
             font-size: 15px;
         }
@@ -649,14 +703,15 @@ function generateHTML(productData, asin) {
             color: var(--brand-yellow);
             font-size: 18px;
             margin: 0 4px;
+            text-shadow: 0 0 10px rgba(255, 212, 0, 0.5);
         }
         
         .amazon-button {
             display: inline-flex;
             align-items: center;
             gap: 8px;
-            background: linear-gradient(135deg, var(--brand-blue), #0d8287);
-            color: white;
+            background: linear-gradient(135deg, var(--brand-blue), #00b3b0);
+            color: var(--brand-black);
             padding: 16px 32px;
             text-decoration: none;
             border-radius: 50px;
@@ -664,16 +719,17 @@ function generateHTML(productData, asin) {
             font-size: 16px;
             transition: all 0.3s ease;
             box-shadow: 
-                0 4px 15px rgba(15, 154, 160, 0.3),
-                0 0 0 1px rgba(15, 154, 160, 0.1);
+                0 4px 20px rgba(0, 229, 224, 0.4),
+                0 0 0 1px rgba(0, 229, 224, 0.2);
             border: none;
         }
         
         .amazon-button:hover {
             transform: translateY(-2px);
             box-shadow: 
-                0 8px 25px rgba(15, 154, 160, 0.4),
-                0 0 0 1px rgba(15, 154, 160, 0.2);
+                0 8px 30px rgba(0, 229, 224, 0.5),
+                0 0 20px rgba(0, 229, 224, 0.3);
+            background: linear-gradient(135deg, #00fffa, var(--brand-blue));
         }
         
         .amazon-button:active {
@@ -683,7 +739,7 @@ function generateHTML(productData, asin) {
         .security-badge {
             margin-top: 20px;
             padding-top: 20px;
-            border-top: 1px solid rgba(0, 0, 0, 0.1);
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
         }
         
         .security-text {
@@ -793,7 +849,7 @@ function generateHTML(productData, asin) {
 }
 
 function generateFallbackHTML(asin) {
-  const affiliateUrl = `https://www.amazon.com/dp/${asin}?tag=${ASSOCIATE_TAG}`;
+  const affiliateUrl = `https://www.amazon.com/dp/${asin}?tag=${PARTNER_TAG}`;
   const fallbackImage = `https://images-na.ssl-images-amazon.com/images/P/${asin}.01._SL1500_.jpg`;
   
   return `<!DOCTYPE html>
@@ -868,5 +924,3 @@ function generateErrorHTML() {
     </html>
   `;
 }
-
-
