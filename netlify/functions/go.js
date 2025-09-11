@@ -124,7 +124,7 @@ function extractASINFromURL(url) {
   return null;
 }
 
-// CORRECTED Amazon Product Advertising API 5.0 Implementation
+// Amazon Product Advertising API 5.0 Implementation - CORRECTED
 async function fetchAmazonProductAPI(asin) {
   const method = 'POST';
   const service = 'ProductAdvertisingAPI';
@@ -133,7 +133,7 @@ async function fetchAmazonProductAPI(asin) {
   const host = 'webservices.amazon.com';
   const endpoint = `https://${host}`;
   
-  // Request payload
+  // Request payload for PA-API 5.0
   const payload = JSON.stringify({
     ItemIds: [asin],
     Resources: [
@@ -142,68 +142,65 @@ async function fetchAmazonProductAPI(asin) {
       'Images.Primary.Large',
       'Images.Primary.Medium',
       'Images.Primary.Small',
-      'Offers.Listings.Price'
+      'Offers.Listings.Price',
+      'ItemInfo.ProductInfo'
     ],
     PartnerTag: PARTNER_TAG,
     PartnerType: 'Associates',
     Marketplace: 'www.amazon.com'
   });
   
-  // Create timestamp - CRITICAL: Use consistent ISO format
-  const now = new Date();
-  const amzDate = now.toISOString().replace(/[:-]|\.\d{3}/g, '');
-  const dateStamp = amzDate.substring(0, 8);
+  // Create timestamp FIRST - use consistent timing
+  const timestamp = new Date();
+  const dateStamp = timestamp.toISOString().substring(0, 10).replace(/-/g, '');
+  const amzDate = timestamp.toISOString().replace(/[:-]|\.\d{3}/g, '');
   
-  console.log('Timestamp:', amzDate);
-  console.log('DateStamp:', dateStamp);
-  
-  // CORRECTED: Canonical request with exact formatting
+  // Create AWS Signature Version 4 - FIXED canonical request
   const canonicalUri = '/paapi5/getitems';
   const canonicalQuerystring = '';
+  // CRITICAL: Headers must be in alphabetical order and lowercase
+  const canonicalHeaders = [
+    `content-type:application/json; charset=utf-8`,
+    `host:${host}`,
+    `x-amz-date:${amzDate}`,
+    `x-amz-target:${target}`
+  ].join('\n') + '\n';
   
-  // Headers must be exact - no extra spaces, lowercase, alphabetical order
-  const canonicalHeaders = `content-type:application/json; charset=utf-8\nhost:${host}\nx-amz-date:${amzDate}\nx-amz-target:${target}\n`;
   const signedHeaders = 'content-type;host;x-amz-date;x-amz-target';
-  
-  // Hash payload with exact UTF-8 encoding
   const payloadHash = crypto.createHash('sha256').update(payload, 'utf8').digest('hex');
   
-  console.log('Payload Hash:', payloadHash);
+  const canonicalRequest = [
+    method,
+    canonicalUri,
+    canonicalQuerystring,
+    canonicalHeaders,
+    signedHeaders,
+    payloadHash
+  ].join('\n');
   
-  // Canonical request - each element on new line
-  const canonicalRequest = `${method}\n${canonicalUri}\n${canonicalQuerystring}\n${canonicalHeaders}\n${signedHeaders}\n${payloadHash}`;
+  console.log('Canonical Request:', canonicalRequest);
   
-  console.log('Canonical Request:');
-  console.log(canonicalRequest);
-  console.log('---');
-  
-  // String to sign
   const credentialScope = `${dateStamp}/${region}/${service}/aws4_request`;
-  const canonicalRequestHash = crypto.createHash('sha256').update(canonicalRequest, 'utf8').digest('hex');
-  const stringToSign = `AWS4-HMAC-SHA256\n${amzDate}\n${credentialScope}\n${canonicalRequestHash}`;
+  const stringToSign = [
+    'AWS4-HMAC-SHA256',
+    amzDate,
+    credentialScope,
+    crypto.createHash('sha256').update(canonicalRequest, 'utf8').digest('hex')
+  ].join('\n');
   
-  console.log('String to Sign:');
-  console.log(stringToSign);
-  console.log('---');
+  console.log('String to Sign:', stringToSign);
   
-  // CORRECTED: Signing key derivation - exact binary operations
-  function getSignatureKey(key, dateStamp, regionName, serviceName) {
-    const kDate = crypto.createHmac('sha256', 'AWS4' + key).update(dateStamp).digest();
-    const kRegion = crypto.createHmac('sha256', kDate).update(regionName).digest();
-    const kService = crypto.createHmac('sha256', kRegion).update(serviceName).digest();
-    const kSigning = crypto.createHmac('sha256', kService).update('aws4_request').digest();
-    return kSigning;
-  }
+  // Create signing key - FIXED: Use binary encoding properly
+  const kDate = crypto.createHmac('sha256', `AWS4${SECRET_KEY}`).update(dateStamp).digest();
+  const kRegion = crypto.createHmac('sha256', kDate).update(region).digest();
+  const kService = crypto.createHmac('sha256', kRegion).update(service).digest();
+  const kSigning = crypto.createHmac('sha256', kService).update('aws4_request').digest();
   
-  const signingKey = getSignatureKey(SECRET_KEY, dateStamp, region, service);
-  const signature = crypto.createHmac('sha256', signingKey).update(stringToSign, 'utf8').digest('hex');
+  const signature = crypto.createHmac('sha256', kSigning).update(stringToSign, 'utf8').digest('hex');
   
-  console.log('Signature:', signature);
-  
-  // Authorization header
   const authorization = `AWS4-HMAC-SHA256 Credential=${ACCESS_KEY}/${credentialScope}, SignedHeaders=${signedHeaders}, Signature=${signature}`;
   
-  console.log('Authorization:', authorization);
+  console.log('Authorization Header:', authorization);
   
   return new Promise((resolve, reject) => {
     const options = {
@@ -213,11 +210,10 @@ async function fetchAmazonProductAPI(asin) {
         'Content-Type': 'application/json; charset=utf-8',
         'Host': host,
         'X-Amz-Date': amzDate,
-        'X-Amz-Target': target
+        'X-Amz-Target': target,
+        'Content-Length': Buffer.byteLength(payload, 'utf8')
       }
     };
-
-    console.log('Request Headers:', options.headers);
 
     const req = https.request(endpoint + canonicalUri, options, (res) => {
       let data = '';
@@ -227,59 +223,52 @@ async function fetchAmazonProductAPI(asin) {
       });
       
       res.on('end', () => {
-        console.log('PA-API Response Status:', res.statusCode);
-        console.log('PA-API Response Headers:', res.headers);
-        console.log('PA-API Raw Response:', data);
+        console.log('PA-API 5.0 Response Status:', res.statusCode);
+        console.log('PA-API 5.0 Response Headers:', res.headers);
         
         try {
           const response = JSON.parse(data);
+          console.log('PA-API 5.0 Response:', JSON.stringify(response, null, 2));
           
-          // Check for signature errors specifically
+          // Check for errors in response
           if (response.Errors && response.Errors.length > 0) {
-            const error = response.Errors[0];
-            console.error('PA-API Error Code:', error.Code);
-            console.error('PA-API Error Message:', error.Message);
-            
-            if (error.Code === 'InvalidSignature') {
-              console.error('SIGNATURE DEBUG INFO:');
-              console.error('ACCESS_KEY starts with:', ACCESS_KEY ? ACCESS_KEY.substring(0, 4) + '...' : 'MISSING');
-              console.error('SECRET_KEY length:', SECRET_KEY ? SECRET_KEY.length : 'MISSING');
-              console.error('PARTNER_TAG:', PARTNER_TAG);
-            }
-            
-            reject(new Error(`PA-API Error: ${error.Code} - ${error.Message}`));
+            console.error('PA-API 5.0 Error:', response.Errors[0].Message);
+            console.error('Error Code:', response.Errors[0].Code);
+            reject(new Error(`PA-API Error: ${response.Errors[0].Message}`));
             return;
           }
           
           // Check for internal failure
           if (response.Output && response.Output.__type && response.Output.__type.includes('InternalFailure')) {
-            console.error('PA-API Internal Failure');
-            reject(new Error('PA-API Internal Failure'));
+            console.error('PA-API 5.0 Internal Failure - likely authentication issue');
+            console.error('Check your credentials: ACCESS_KEY, SECRET_KEY, and PARTNER_TAG');
+            console.error('Full response:', JSON.stringify(response, null, 2));
+            reject(new Error('PA-API Authentication Failed - Check your credentials'));
             return;
           }
           
           const productData = parsePAAPI5Response(response, asin);
+          console.log('Parsed product data:', productData);
           resolve(productData);
-          
         } catch (parseError) {
-          console.error('Parse error:', parseError);
-          console.error('Raw response for debugging:', data);
+          console.error('PA-API 5.0 Parse error:', parseError);
+          console.error('Raw response:', data);
           reject(parseError);
         }
       });
     });
     
     req.on('error', (error) => {
-      console.error('Request error:', error);
+      console.error('PA-API 5.0 Request error:', error);
       reject(error);
     });
     
     req.setTimeout(10000, () => {
       req.abort();
-      reject(new Error('Request timeout'));
+      reject(new Error('PA-API 5.0 request timeout'));
     });
     
-    req.write(payload);
+    req.write(payload, 'utf8');
     req.end();
   });
 }
@@ -330,35 +319,15 @@ function parsePAAPI5Response(response, asin) {
   };
 }
 
-// IMPROVED Fallback scraping function with multiple strategies
+// IMPROVED Fallback scraping function with better selectors and image quality
 async function fetchAmazonProductScraping(asin) {
-  // Strategy 1: Try scraping Amazon directly
-  const directResult = await tryDirectAmazonScraping(asin);
-  if (directResult && directResult.title !== `Amazon Product ${asin}`) {
-    console.log('Direct scraping successful:', directResult);
-    return directResult;
-  }
-
-  // Strategy 2: Try alternative Amazon endpoints
-  const altResult = await tryAlternativeEndpoints(asin);
-  if (altResult && altResult.title !== `Amazon Product ${asin}`) {
-    console.log('Alternative endpoint successful:', altResult);
-    return altResult;
-  }
-
-  // Strategy 3: Use Amazon's image service directly for better images
-  const enhancedResult = await enhanceWithAmazonImages(asin);
-  console.log('Enhanced with Amazon images:', enhancedResult);
-  return enhancedResult;
-}
-
-async function tryDirectAmazonScraping(asin) {
   const { parse } = require('node-html-parser');
   
-  // More realistic browser headers
+  // Try multiple User-Agent strings - more recent ones
   const userAgents = [
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0',
     'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
   ];
   
@@ -367,20 +336,18 @@ async function tryDirectAmazonScraping(asin) {
   return new Promise((resolve, reject) => {
     const options = {
       hostname: 'www.amazon.com',
-      path: `/dp/${asin}?ref=sr_1_1`,
+      path: `/dp/${asin}`,
       method: 'GET',
       headers: {
         'User-Agent': randomUserAgent,
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
         'Accept-Language': 'en-US,en;q=0.9',
         'Accept-Encoding': 'gzip, deflate, br',
-        'DNT': '1',
         'Connection': 'keep-alive',
         'Upgrade-Insecure-Requests': '1',
         'Sec-Fetch-Dest': 'document',
         'Sec-Fetch-Mode': 'navigate',
         'Sec-Fetch-Site': 'none',
-        'Sec-Fetch-User': '?1',
         'Cache-Control': 'max-age=0'
       }
     };
@@ -394,46 +361,56 @@ async function tryDirectAmazonScraping(asin) {
       
       res.on('end', () => {
         try {
-          // Check if blocked
+          // Check if Amazon blocked the request
           if (data.includes('Robot Check') || data.includes('blocked') || data.length < 1000) {
-            console.log('Direct scraping blocked for ASIN:', asin);
-            resolve(null);
+            console.log('Amazon blocked scraping request for ASIN:', asin);
+            resolve({
+              title: `Amazon Product ${asin}`,
+              image: `https://images-na.ssl-images-amazon.com/images/P/${asin}.01._SL1500_.jpg`,
+              price: '',
+              asin: asin
+            });
             return;
           }
           
           const root = parse(data);
           
-          // Enhanced title extraction
+          // IMPROVED: Extract product title with more selectors and better cleaning
           let title = '';
           const titleSelectors = [
             '#productTitle',
             '[data-automation-id="product-title"]',
-            'h1.a-size-large.a-spacing-none.a-color-base',
+            '.product-title', 
+            'h1.a-size-large',
             'h1[data-automation-id="product-title"]',
-            '.product-title',
-            'span#productTitle'
+            '.a-size-large.product-title-word-break',
+            'span#productTitle',
+            'h1.a-size-base-plus'
           ];
           
           for (const selector of titleSelectors) {
             const element = root.querySelector(selector);
             if (element && element.text.trim()) {
-              title = element.text.trim()
+              title = element.text.trim();
+              // Clean up title - remove extra whitespace and common Amazon suffixes
+              title = title
                 .replace(/\s+/g, ' ')
                 .replace(/\s*-\s*Amazon\.com$/, '')
                 .replace(/\s*\|\s*Amazon\.com$/, '')
                 .trim();
-              if (title.length > 10) break; // Only accept substantial titles
+              break;
             }
           }
           
-          // Enhanced image extraction with multiple fallbacks
+          // IMPROVED: Extract product image with better quality and more attempts
           let image = '';
           const imageSelectors = [
             '#landingImage',
             '.a-dynamic-image',
             'img[data-old-hires]',
-            '#imgBlkFront',
             '.imgTagWrapper img',
+            '#main-image',
+            '.a-button-thumbnail img',
             'img[src*="images-na.ssl-images-amazon.com"]',
             'img[data-a-dynamic-image]'
           ];
@@ -447,11 +424,12 @@ async function tryDirectAmazonScraping(asin) {
                             element.getAttribute('data-src');
                             
               if (rawImage && (rawImage.includes('images-na.ssl-images-amazon.com') || rawImage.includes('m.media-amazon.com'))) {
-                // Handle dynamic image JSON
+                // Parse dynamic image JSON if present
                 if (rawImage.startsWith('{')) {
                   try {
                     const imageData = JSON.parse(rawImage);
                     const imageUrls = Object.keys(imageData);
+                    // Get the largest image available
                     image = imageUrls.sort((a, b) => {
                       const aSize = parseInt(a.match(/_SX(\d+)_/) || a.match(/(\d+)x\d+/) || [0, 0])[1] || 0;
                       const bSize = parseInt(b.match(/_SX(\d+)_/) || b.match(/(\d+)x\d+/) || [0, 0])[1] || 0;
@@ -465,22 +443,36 @@ async function tryDirectAmazonScraping(asin) {
                   image = rawImage;
                 }
                 
-                // Force high resolution
-                if (image) {
-                  image = enhanceImageQuality(image);
-                  break;
+                // IMPROVED: Force higher resolution and better quality
+                if (image && (image.includes('amazon.com') || image.includes('ssl-images-amazon'))) {
+                  image = image
+                    // Remove size restrictions and force larger images
+                    .replace(/\._[A-Z0-9,_]*\./g, '._AC_SL1500_.')
+                    .replace(/\._SX\d+_/g, '._SX1500_')
+                    .replace(/\._SY\d+_/g, '._SY1500_')
+                    .replace(/\._AC_UL\d+_/g, '._AC_UL1500_')
+                    .replace(/\._AC_UY\d+_/g, '._AC_UY1500_')
+                    // Ensure we get the highest quality
+                    .replace(/\._SS\d+_/g, '._SL1500_')
+                    // Remove compression artifacts parameters
+                    .replace(/,\d+_/g, '_');
                 }
+                break;
               }
             }
           }
           
-          // Price extraction
+          // IMPROVED: Extract price with more selectors
           let price = '';
           const priceSelectors = [
             '.a-price.a-text-price.a-size-medium.apexPriceToPay .a-offscreen',
             '.a-price .a-offscreen',
-            '.a-price-current .a-offscreen',
-            '.a-price-whole'
+            '.a-price-whole',
+            '.a-price-symbol + .a-price-whole',
+            '#price_inside_buybox',
+            '.a-price.a-text-price .a-offscreen',
+            '[data-automation-id="list-price"] .a-offscreen',
+            '.a-price-current .a-offscreen'
           ];
           
           for (const selector of priceSelectors) {
@@ -491,174 +483,48 @@ async function tryDirectAmazonScraping(asin) {
             }
           }
           
-          resolve({
-            title: title || null,
-            image: image || null,
-            price: price,
-            asin: asin
-          });
-          
-        } catch (parseError) {
-          console.error('Direct scraping parse error:', parseError);
-          resolve(null);
-        }
-      });
-    });
-    
-    req.on('error', () => resolve(null));
-    req.setTimeout(10000, () => {
-      req.abort();
-      resolve(null);
-    });
-    
-    req.end();
-  });
-}
-
-async function tryAlternativeEndpoints(asin) {
-  // Try mobile Amazon which is sometimes less protected
-  const { parse } = require('node-html-parser');
-  
-  return new Promise((resolve) => {
-    const options = {
-      hostname: 'm.amazon.com',
-      path: `/dp/${asin}`,
-      method: 'GET',
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_7_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.2 Mobile/15E148 Safari/604.1',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.5'
-      }
-    };
-
-    const req = https.request(options, (res) => {
-      let data = '';
-      
-      res.on('data', (chunk) => {
-        data += chunk;
-      });
-      
-      res.on('end', () => {
-        try {
-          if (data.includes('Robot Check') || data.length < 500) {
-            resolve(null);
-            return;
-          }
-          
-          const root = parse(data);
-          
-          // Mobile-specific selectors
-          let title = '';
-          const mobileTitleSelectors = [
-            '#feature-bullets h1',
-            '.cr-original-review-text',
-            'h1',
-            '.product-title'
-          ];
-          
-          for (const selector of mobileTitleSelectors) {
-            const element = root.querySelector(selector);
-            if (element && element.text.trim() && element.text.trim().length > 10) {
-              title = element.text.trim()
-                .replace(/\s+/g, ' ')
-                .replace(/\s*-\s*Amazon\.com$/, '')
-                .trim();
-              break;
+          // If no price found, try one more method
+          if (!price) {
+            const priceElement = root.querySelector('.a-price');
+            if (priceElement) {
+              const priceText = priceElement.text;
+              const priceMatch = priceText.match(/\$[\d,]+\.?\d*/);
+              if (priceMatch) {
+                price = priceMatch[0];
+              }
             }
           }
           
+          const result = {
+            title: title || `Amazon Product ${asin}`,
+            image: image || `https://images-na.ssl-images-amazon.com/images/P/${asin}.01._SL1500_.jpg`,
+            price: price,
+            asin: asin
+          };
+          
+          console.log('Scraping result:', result);
+          resolve(result);
+          
+        } catch (parseError) {
+          console.error('Parse error:', parseError);
           resolve({
-            title: title || null,
-            image: null,
+            title: `Amazon Product ${asin}`,
+            image: `https://images-na.ssl-images-amazon.com/images/P/${asin}.01._SL1500_.jpg`,
             price: '',
             asin: asin
           });
-          
-        } catch (e) {
-          resolve(null);
         }
       });
     });
     
-    req.on('error', () => resolve(null));
-    req.setTimeout(8000, () => {
-      req.abort();
-      resolve(null);
+    req.on('error', (error) => {
+      console.error('Request error:', error);
+      reject(error);
     });
     
-    req.end();
-  });
-}
-
-function enhanceImageQuality(imageUrl) {
-  if (!imageUrl) return imageUrl;
-  
-  // Amazon image URL manipulation for higher quality
-  return imageUrl
-    // Remove all size restrictions
-    .replace(/\._[A-Z0-9,_]*\./g, '._SL1500_.')
-    .replace(/\._SX\d+_/g, '._SX1500_')
-    .replace(/\._SY\d+_/g, '._SY1500_')
-    .replace(/\._AC_UL\d+_/g, '._AC_UL1500_')
-    .replace(/\._AC_UX\d+_/g, '._AC_UX1500_')
-    .replace(/\._AC_UY\d+_/g, '._AC_UY1500_')
-    .replace(/\._SS\d+_/g, '._SL1500_.')
-    // Remove compression parameters
-    .replace(/,\d+_/g, '_')
-    // Ensure we get full resolution
-    .replace(/\._CR\d+,\d+,\d+,\d+_/g, '')
-    .replace(/\._PIbundle-\d+,TopRight,\d+,\d+_/g, '');
-}
-
-async function enhanceWithAmazonImages(asin) {
-  // Generate multiple potential high-quality image URLs
-  const potentialImages = [
-    `https://images-na.ssl-images-amazon.com/images/P/${asin}.01._SCLZZZZZZZ_SX500_.jpg`,
-    `https://images-na.ssl-images-amazon.com/images/P/${asin}.01._SL1500_.jpg`,
-    `https://m.media-amazon.com/images/I/${asin}._SL1500_.jpg`,
-    `https://images-na.ssl-images-amazon.com/images/P/${asin}.01._AC_SL1500_.jpg`,
-    `https://images-na.ssl-images-amazon.com/images/P/${asin}.01.L.jpg`
-  ];
-  
-  // Test which image URL works
-  for (const imageUrl of potentialImages) {
-    const works = await testImageUrl(imageUrl);
-    if (works) {
-      return {
-        title: `Amazon Product ${asin}`,
-        image: imageUrl,
-        price: '',
-        asin: asin
-      };
-    }
-  }
-  
-  // Final fallback
-  return {
-    title: `Amazon Product ${asin}`,
-    image: `https://images-na.ssl-images-amazon.com/images/P/${asin}.01._SL1500_.jpg`,
-    price: '',
-    asin: asin
-  };
-}
-
-function testImageUrl(url) {
-  return new Promise((resolve) => {
-    const urlParts = new URL(url);
-    const options = {
-      hostname: urlParts.hostname,
-      path: urlParts.pathname,
-      method: 'HEAD'
-    };
-
-    const req = https.request(options, (res) => {
-      resolve(res.statusCode === 200);
-    });
-    
-    req.on('error', () => resolve(false));
-    req.setTimeout(3000, () => {
+    req.setTimeout(15000, () => { // Increased timeout
       req.abort();
-      resolve(false);
+      reject(new Error('Scraping request timeout'));
     });
     
     req.end();
@@ -1085,6 +951,5 @@ function generateErrorHTML() {
     </html>
   `;
 }
-
 
 
