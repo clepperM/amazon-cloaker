@@ -554,21 +554,19 @@ function generateHTML(productData, asin) {
     <meta name="twitter:description" content="Check out this amazing deal on Amazon!">
     <meta name="twitter:image" content="${productData.image}">
     
-    <title>${productData.title} - OneLastLink</title>
-    
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <title>${productData.title}</title>
     
     <style>
         :root {
-            --brand-black: #000000;
-            --brand-blue: #00E5E0;
-            --brand-red: #FF2E6C;
-            --brand-yellow: #FFD400;
-            --brand-light: #1a1a1a;
-            --text-primary: #ffffff;
-            --text-secondary: #a0a0a0;
-            --card-bg: rgba(26, 26, 26, 0.95);
-            --card-border: rgba(0, 229, 224, 0.1);
+            --amazon-orange: #FF9900;
+            --amazon-dark: #131921;
+            --amazon-light: #EAEDED;
+            --amazon-blue: #146EB4;
+            --brand-cyan: #00E5E0;
+            --text-primary: #0F1111;
+            --text-secondary: #565959;
+            --border-color: #D5D9D9;
+            --price-red: #B12704;
         }
         
         * {
@@ -578,292 +576,333 @@ function generateHTML(productData, asin) {
         }
         
         body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            background: var(--brand-black);
+            font-family: 'Amazon Ember', Arial, sans-serif;
+            background: #FFFFFF;
             min-height: 100vh;
             display: flex;
+            flex-direction: column;
+        }
+        
+        /* Amazon-style header */
+        .header {
+            background: var(--amazon-dark);
+            padding: 8px 20px;
+            display: flex;
             align-items: center;
-            justify-content: center;
+            justify-content: space-between;
+        }
+        
+        .logo-section {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .amazon-logo {
+            color: white;
+            font-size: 22px;
+            font-weight: bold;
+            letter-spacing: -1px;
+        }
+        
+        .divider-line {
+            height: 30px;
+            width: 1px;
+            background: #48525C;
+        }
+        
+        .powered-by {
+            color: #999;
+            font-size: 11px;
+        }
+        
+        .brand-link {
+            color: var(--brand-cyan);
+            text-decoration: none;
+            font-weight: 500;
+        }
+        
+        /* Main content */
+        .main-container {
+            max-width: 1500px;
+            margin: 0 auto;
             padding: 20px;
-            position: relative;
-            overflow: hidden;
+            display: flex;
+            gap: 40px;
+            flex: 1;
         }
         
-        body::before {
-            content: '';
-            position: absolute;
-            top: -50%;
-            left: -50%;
-            width: 200%;
-            height: 200%;
-            background: radial-gradient(circle, rgba(0, 229, 224, 0.03) 1px, transparent 1px);
-            background-size: 50px 50px;
-            animation: float 20s infinite linear;
-            pointer-events: none;
+        /* Left - Image */
+        .image-section {
+            flex: 0 0 400px;
         }
         
-        @keyframes float {
-            0% { transform: translate(0, 0) rotate(0deg); }
-            100% { transform: translate(-50px, -50px) rotate(360deg); }
-        }
-        
-        .container {
-            background: var(--card-bg);
-            backdrop-filter: blur(20px);
-            border-radius: 24px;
-            padding: 40px;
+        .image-container {
+            position: sticky;
+            top: 20px;
+            background: white;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 20px;
             text-align: center;
-            box-shadow: 
-                0 25px 50px -12px rgba(0, 0, 0, 0.8),
-                0 0 0 1px var(--card-border),
-                0 0 20px rgba(0, 229, 224, 0.1);
-            max-width: 500px;
-            width: 100%;
-            position: relative;
-            z-index: 1;
-        }
-        
-        .brand-logo {
-            margin-bottom: 20px;
-            padding: 12px;
-            background: var(--brand-black);
-            border-radius: 16px;
-            display: inline-block;
-            border: 1px solid var(--card-border);
-        }
-        
-        .brand-logo img {
-            height: 32px;
-            width: auto;
-        }
-        
-        .brand-name {
-            font-size: 24px;
-            font-weight: 700;
-            color: var(--brand-blue);
-            margin-bottom: 8px;
-            letter-spacing: -0.025em;
-            text-shadow: 0 0 10px rgba(0, 229, 224, 0.3);
-        }
-        
-        .brand-tagline {
-            font-size: 14px;
-            color: var(--text-secondary);
-            margin-bottom: 30px;
-        }
-        
-        .product-card {
-            background: rgba(0, 0, 0, 0.3);
-            border-radius: 16px;
-            padding: 24px;
-            margin-bottom: 24px;
-            box-shadow: 
-                0 4px 20px rgba(0, 0, 0, 0.5),
-                inset 0 1px 0 rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.1);
         }
         
         .product-image {
-            width: 200px;
-            height: 200px;
+            width: 100%;
+            max-width: 360px;
+            height: auto;
             object-fit: contain;
-            border-radius: 12px;
-            margin-bottom: 16px;
-            background: rgba(255, 255, 255, 0.05);
-            padding: 8px;
+        }
+        
+        /* Right - Details */
+        .details-section {
+            flex: 1;
+            max-width: 700px;
         }
         
         .product-title {
-            font-size: 18px;
-            font-weight: 600;
-            color: var(--text-primary);
-            margin-bottom: 12px;
-            line-height: 1.4;
-            display: -webkit-box;
-            -webkit-line-clamp: 2;
-            -webkit-box-orient: vertical;
-            overflow: hidden;
-        }
-        
-        .product-price {
             font-size: 24px;
-            font-weight: 700;
-            color: var(--brand-red);
-            margin-bottom: 16px;
-            text-shadow: 0 0 10px rgba(255, 46, 108, 0.3);
+            font-weight: 400;
+            line-height: 32px;
+            color: var(--text-primary);
+            margin-bottom: 8px;
         }
         
-        .redirect-status {
+        .rating-line {
             display: flex;
             align-items: center;
-            justify-content: center;
-            gap: 12px;
-            margin-bottom: 24px;
-            padding: 16px;
-            background: rgba(255, 212, 0, 0.1);
-            border-radius: 12px;
-            border: 1px solid rgba(255, 212, 0, 0.2);
+            gap: 8px;
+            margin-bottom: 12px;
+            font-size: 14px;
         }
         
-        .status-icon {
+        .stars {
+            color: var(--amazon-orange);
+        }
+        
+        .rating-link {
+            color: var(--amazon-blue);
+            text-decoration: none;
+        }
+        
+        .divider {
+            border: 0;
+            height: 1px;
+            background: #e7e7e7;
+            margin: 12px 0;
+        }
+        
+        /* Price Box */
+        .price-box {
+            background: var(--amazon-light);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 16px;
+            margin: 16px 0;
+        }
+        
+        .price-label {
+            font-size: 14px;
+            color: var(--text-secondary);
+            margin-bottom: 4px;
+        }
+        
+        .price {
+            font-size: 28px;
+            color: var(--price-red);
+            font-weight: 400;
+            line-height: 1.3;
+        }
+        
+        .price-currency {
+            font-size: 13px;
+            vertical-align: super;
+        }
+        
+        .price-whole {
+            font-size: 28px;
+        }
+        
+        /* Redirect Notice */
+        .redirect-box {
+            background: #FFF8E1;
+            border: 1px solid #FFE082;
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin: 16px 0;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .spinner {
             width: 20px;
             height: 20px;
-            border: 2px solid var(--brand-yellow);
-            border-top: 2px solid transparent;
+            border: 3px solid #FFA726;
+            border-top: 3px solid transparent;
             border-radius: 50%;
             animation: spin 1s linear infinite;
         }
         
         @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+            to { transform: rotate(360deg); }
         }
         
         .redirect-text {
             color: var(--text-primary);
-            font-weight: 500;
-            font-size: 15px;
+            font-size: 14px;
         }
         
         .countdown {
             font-weight: 700;
-            color: var(--brand-yellow);
-            font-size: 18px;
-            margin: 0 4px;
-            text-shadow: 0 0 10px rgba(255, 212, 0, 0.5);
+            color: var(--price-red);
         }
         
-        .amazon-button {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            background: linear-gradient(135deg, var(--brand-blue), #00b3b0);
-            color: var(--brand-black);
-            padding: 16px 32px;
+        /* Buy Button */
+        .buy-button {
+            display: block;
+            width: 100%;
+            max-width: 300px;
+            background: var(--amazon-orange);
+            color: #111;
+            text-align: center;
+            padding: 10px 20px;
+            border-radius: 8px;
             text-decoration: none;
-            border-radius: 50px;
-            font-weight: 600;
-            font-size: 16px;
-            transition: all 0.3s ease;
-            box-shadow: 
-                0 4px 20px rgba(0, 229, 224, 0.4),
-                0 0 0 1px rgba(0, 229, 224, 0.2);
-            border: none;
+            font-size: 13px;
+            border: 1px solid #FFA724;
+            transition: background 0.15s;
+            box-shadow: 0 2px 5px rgba(213,217,217,.5);
+            margin-top: 8px;
         }
         
-        .amazon-button:hover {
-            transform: translateY(-2px);
-            box-shadow: 
-                0 8px 30px rgba(0, 229, 224, 0.5),
-                0 0 20px rgba(0, 229, 224, 0.3);
-            background: linear-gradient(135deg, #00fffa, var(--brand-blue));
+        .buy-button:hover {
+            background: #F7CA00;
+            border-color: #F2C200;
         }
         
-        .amazon-button:active {
-            transform: translateY(0);
-        }
-        
-        .security-badge {
-            margin-top: 20px;
-            padding-top: 20px;
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
-        }
-        
-        .security-text {
+        /* Footer */
+        .footer {
+            background: var(--amazon-dark);
+            color: #999;
+            text-align: center;
+            padding: 16px;
             font-size: 12px;
-            color: var(--text-secondary);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 6px;
+            margin-top: auto;
         }
         
-        .shield-icon {
-            width: 16px;
-            height: 16px;
-            fill: var(--brand-blue);
+        .footer-link {
+            color: var(--brand-cyan);
+            text-decoration: none;
+        }
+        
+        @media (max-width: 968px) {
+            .main-container {
+                flex-direction: column;
+            }
+            
+            .image-section {
+                flex: none;
+            }
+            
+            .image-container {
+                position: relative;
+                top: 0;
+            }
         }
         
         @media (max-width: 480px) {
-            .container {
-                padding: 24px;
-                margin: 10px;
+            .header {
+                padding: 8px 12px;
             }
             
-            .product-image {
-                width: 150px;
-                height: 150px;
-            }
-            
-            .brand-name {
-                font-size: 20px;
+            .main-container {
+                padding: 12px;
+                gap: 20px;
             }
             
             .product-title {
-                font-size: 16px;
+                font-size: 20px;
+                line-height: 28px;
             }
-        }
-        
-        .countdown {
-            animation: pulse 1s ease-in-out infinite;
-        }
-        
-        @keyframes pulse {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.05); }
+            
+            .price {
+                font-size: 24px;
+            }
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <!-- Brand Header -->
-        <div class="brand-logo">
-            <img src="https://cdn.prod.website-files.com/6813bc8de3014317dbb7ce36/68b1450de3257ab4374d7a6b_webclip.png" alt="OneLastLink" />
-        </div>
-        <div class="brand-name">One Last Link</div>
-        <div class="brand-tagline">The Internet's Impulse Vault</div>
-        
-        <!-- Product Card -->
-        <div class="product-card">
-            <img src="${productData.image}" alt="${productData.title}" class="product-image">
-            <h1 class="product-title">${productData.title}</h1>
-            ${productData.price ? `<div class="product-price">${productData.price}</div>` : ''}
-        </div>
-        
-        <!-- Redirect Status -->
-        <div class="redirect-status">
-            <div class="status-icon"></div>
-            <div class="redirect-text">
-                Taking you to Amazon in <span id="countdown" class="countdown">3</span> seconds
-            </div>
-        </div>
-        
-        <!-- Amazon Button -->
-        <a href="${affiliateUrl}" class="amazon-button">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M7 18c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zM1 2v2h2l3.6 7.59-1.35 2.45c-.16.28-.25.61-.25.96 0 1.1.9 2 2 2h12v-2H7.42c-.14 0-.25-.11-.25-.25l.03-.12L8.1 13h7.45c.75 0 1.41-.41 1.75-1.03L21.7 4H5.21l-.94-2H1zm16 16c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
-            </svg>
-            Continue to Amazon
-        </a>
-        
-        <!-- Security Badge -->
-        <div class="security-badge">
-            <div class="security-text">
-                <svg class="shield-icon" viewBox="0 0 24 24">
-                    <path d="M12,1L3,5V11C3,16.55 6.84,21.74 12,23C17.16,21.74 21,16.55 21,11V5L12,1M10,17L6,13L7.41,11.59L10,14.17L16.59,7.58L18,9L10,17Z"/>
-                </svg>
-                Secured by One Last Link • Trusted affiliate partner
+    <!-- Header -->
+    <div class="header">
+        <div class="logo-section">
+            <div class="amazon-logo">amazon</div>
+            <div class="divider-line"></div>
+            <div class="powered-by">
+                via <a href="https://onelastlink.com" class="brand-link">One Last Link</a>
             </div>
         </div>
     </div>
     
+    <!-- Main Content -->
+    <div class="main-container">
+        <!-- Left: Product Image -->
+        <div class="image-section">
+            <div class="image-container">
+                <img src="${productData.image}" alt="${productData.title}" class="product-image">
+            </div>
+        </div>
+        
+        <!-- Right: Product Details -->
+        <div class="details-section">
+            <h1 class="product-title">${productData.title}</h1>
+            
+            <div class="rating-line">
+                <span class="stars">★★★★★</span>
+                <a href="#" class="rating-link">See customer reviews</a>
+            </div>
+            
+            <hr class="divider">
+            
+            ${productData.price ? `
+            <div class="price-box">
+                <div class="price-label">Price:</div>
+                <div class="price">${productData.price}</div>
+            </div>
+            ` : ''}
+            
+            <!-- Redirect Notice -->
+            <div class="redirect-box">
+                <div class="spinner"></div>
+                <div class="redirect-text">
+                    Redirecting to Amazon in <span id="countdown" class="countdown">3</span> seconds
+                </div>
+            </div>
+            
+            <!-- Buy Button -->
+            <a href="${affiliateUrl}" class="buy-button">
+                Continue to Amazon
+            </a>
+            
+            <div style="margin-top: 16px; color: var(--text-secondary); font-size: 12px;">
+                ✓ Secure checkout on Amazon.com<br>
+                As an Amazon Associate I earn from qualifying purchases.
+            </div>
+        </div>
+    </div>
+    
+    <!-- Footer -->
+    <div class="footer">
+        Secured by <a href="https://onelastlink.com" class="footer-link">One Last Link</a> • Trusted affiliate partner
+    </div>
+    
     <script>
         let countdown = 3;
-        const countdownElement = document.getElementById('countdown');
+        const el = document.getElementById('countdown');
         
         const timer = setInterval(() => {
             countdown--;
-            countdownElement.textContent = countdown;
+            el.textContent = countdown;
             
             if (countdown <= 0) {
                 clearInterval(timer);
@@ -951,5 +990,6 @@ function generateErrorHTML() {
     </html>
   `;
 }
+
 
 
