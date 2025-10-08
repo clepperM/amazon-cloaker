@@ -893,7 +893,7 @@ function generateHTML(productData, asin) {
     </div>
     
     <script>
-        let countdown = 3;
+        let countdown = 999;
         const el = document.getElementById('countdown');
         
         const timer = setInterval(() => {
@@ -1008,6 +1008,7 @@ function generateErrorHTML() {
     </html>
   `;
 }
+
 
 
 
