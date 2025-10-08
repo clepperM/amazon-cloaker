@@ -540,6 +540,26 @@ function generateHTML(productData, asin) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     
+    <!-- Google Analytics 4 -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-V17N2H7EB8"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-V17N2H7EB8', {
+        'page_title': 'Product Redirect - ${asin}',
+        'page_path': '/${asin}'
+      });
+      
+      // Track redirect click event
+      gtag('event', 'product_view', {
+        'event_category': 'Product',
+        'event_label': '${asin}',
+        'product_title': '${productData.title}',
+        'product_price': '${productData.price || 'N/A'}'
+      });
+    </script>
+    
     <!-- OpenGraph Tags -->
     <meta property="og:title" content="${productData.title}">
     <meta property="og:description" content="Check out this amazing deal on Amazon! ${productData.price ? 'Price: ' + productData.price : 'Great value!'}">
@@ -583,7 +603,6 @@ function generateHTML(productData, asin) {
             flex-direction: column;
         }
         
-        /* Amazon-style header */
         .header {
             background: var(--amazon-dark);
             padding: 8px 20px;
@@ -622,7 +641,6 @@ function generateHTML(productData, asin) {
             font-weight: 500;
         }
         
-        /* Main content */
         .main-container {
             max-width: 1500px;
             margin: 0 auto;
@@ -632,7 +650,6 @@ function generateHTML(productData, asin) {
             flex: 1;
         }
         
-        /* Left - Image */
         .image-section {
             flex: 0 0 400px;
         }
@@ -654,7 +671,6 @@ function generateHTML(productData, asin) {
             object-fit: contain;
         }
         
-        /* Right - Details */
         .details-section {
             flex: 1;
             max-width: 700px;
@@ -692,7 +708,6 @@ function generateHTML(productData, asin) {
             margin: 12px 0;
         }
         
-        /* Price Box */
         .price-box {
             background: var(--amazon-light);
             border: 1px solid var(--border-color);
@@ -714,16 +729,6 @@ function generateHTML(productData, asin) {
             line-height: 1.3;
         }
         
-        .price-currency {
-            font-size: 13px;
-            vertical-align: super;
-        }
-        
-        .price-whole {
-            font-size: 28px;
-        }
-        
-        /* Redirect Notice */
         .redirect-box {
             background: #FFF8E1;
             border: 1px solid #FFE082;
@@ -758,7 +763,6 @@ function generateHTML(productData, asin) {
             color: var(--price-red);
         }
         
-        /* Buy Button */
         .buy-button {
             display: block;
             width: 100%;
@@ -781,7 +785,6 @@ function generateHTML(productData, asin) {
             border-color: #F2C200;
         }
         
-        /* Footer */
         .footer {
             background: var(--amazon-dark);
             color: #999;
@@ -833,27 +836,23 @@ function generateHTML(productData, asin) {
     </style>
 </head>
 <body>
-    <!-- Header -->
     <div class="header">
         <div class="logo-section">
             <div class="amazon-logo">amazon</div>
             <div class="divider-line"></div>
             <div class="powered-by">
-                via <a href="https://onelastlink.com" class="brand-link">LYNX</a>
+                via <a href="https://onelastlink.com" class="brand-link">One Last Link</a>
             </div>
         </div>
     </div>
     
-    <!-- Main Content -->
     <div class="main-container">
-        <!-- Left: Product Image -->
         <div class="image-section">
             <div class="image-container">
                 <img src="${productData.image}" alt="${productData.title}" class="product-image">
             </div>
         </div>
         
-        <!-- Right: Product Details -->
         <div class="details-section">
             <h1 class="product-title">${productData.title}</h1>
             
@@ -871,7 +870,6 @@ function generateHTML(productData, asin) {
             </div>
             ` : ''}
             
-            <!-- Redirect Notice -->
             <div class="redirect-box">
                 <div class="spinner"></div>
                 <div class="redirect-text">
@@ -879,19 +877,17 @@ function generateHTML(productData, asin) {
                 </div>
             </div>
             
-            <!-- Buy Button -->
-            <a href="${affiliateUrl}" class="buy-button">
+            <a href="${affiliateUrl}" class="buy-button" id="amazon-button">
                 Continue to Amazon
             </a>
             
             <div style="margin-top: 16px; color: var(--text-secondary); font-size: 12px;">
                 ✓ Secure checkout on Amazon.com<br>
-                As an Amazon Associate I earn from qualifying purchases.
+                ✓ Free returns on eligible items
             </div>
         </div>
     </div>
     
-    <!-- Footer -->
     <div class="footer">
         Secured by <a href="https://onelastlink.com" class="footer-link">One Last Link</a> • Trusted affiliate partner
     </div>
@@ -906,9 +902,31 @@ function generateHTML(productData, asin) {
             
             if (countdown <= 0) {
                 clearInterval(timer);
-                window.location.href = '${affiliateUrl}';
+                
+                // Track outbound click before redirect
+                gtag('event', 'click', {
+                  'event_category': 'Outbound Link',
+                  'event_label': 'Amazon Redirect - ${asin}',
+                  'transport_type': 'beacon',
+                  'event_callback': function() {
+                    window.location.href = '${affiliateUrl}';
+                  }
+                });
+                
+                // Fallback in case callback doesn't fire
+                setTimeout(function() {
+                  window.location.href = '${affiliateUrl}';
+                }, 250);
             }
         }, 1000);
+        
+        // Track manual button clicks
+        document.getElementById('amazon-button').addEventListener('click', function(e) {
+            gtag('event', 'click', {
+              'event_category': 'Manual Click',
+              'event_label': 'Amazon Button - ${asin}'
+            });
+        });
     </script>
 </body>
 </html>`;
@@ -990,6 +1008,7 @@ function generateErrorHTML() {
     </html>
   `;
 }
+
 
 
 
