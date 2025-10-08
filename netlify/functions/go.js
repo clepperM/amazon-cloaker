@@ -883,7 +883,7 @@ function generateHTML(productData, asin) {
             
             <div style="margin-top: 16px; color: var(--text-secondary); font-size: 12px;">
                 ✓ Secure checkout on Amazon.com<br>
-                ✓ As an Amazon Associate I earn from qualifying purchases
+                As an Amazon Associate I earn from qualifying purchases
             </div>
         </div>
     </div>
@@ -1008,6 +1008,7 @@ function generateErrorHTML() {
     </html>
   `;
 }
+
 
 
 
