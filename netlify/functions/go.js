@@ -841,7 +841,7 @@ function generateHTML(productData, asin) {
             <div class="amazon-logo">amazon</div>
             <div class="divider-line"></div>
             <div class="powered-by">
-                via <a href="https://onelastlink.com" class="brand-link">One Last Link</a>
+                via <a href="https://onelastlink.com" class="brand-link">LYNX</a>
             </div>
         </div>
     </div>
@@ -1008,6 +1008,7 @@ function generateErrorHTML() {
     </html>
   `;
 }
+
 
 
 
