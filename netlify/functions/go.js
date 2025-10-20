@@ -543,26 +543,25 @@ function generateHTML(productData, asin) {
       });
     </script>
     
-    <!-- OpenGraph Tags -->
-    <meta property="og:title" <meta property="og:title" content="DEAL: ${productData.title}">
-    <meta property="og:description" content="${productData.price ? 'Only ' + productData.price + ' • ' : ''}Lowest ever on Amazon!">
-    <meta property="og:image" content="${productData.image}">
-    <meta property="og:url" content="https://go.onelastlink.com/${asin}">
-    <meta property="og:type" content="product">
-    <meta property="og:site_name" content="amazon.com">
-    
-    <title>${productData.title}</title>
+<!-- OpenGraph Tags -->
+<meta property="og:title" content="DEAL: ${productData.title}">
+<meta property="og:description" content="${productData.price ? 'Only ' + productData.price + ' • ' : ''}Lowest ever on Amazon!">
+<meta property="og:image" content="${productData.image}">
+<meta property="og:url" content="https://go.onelastlink.com/${asin}">
+<meta property="og:type" content="product">
+<meta property="og:site_name" content="amazon.com">
 
-    <!-- Twitter Cards -->
-    <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="${productData.title}">
-    <meta name="twitter:description" content="${productData.price ? 'Only ' + productData.price + ' • ' : ''}Lowest ever on Amazon!">
-    <meta name="twitter:image" content="${productData.image}">
-    
-    <title>${productData.title} - Lynx Finds Deals</title>
-    
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <style>
+<title>${productData.title}</title>
+
+<!-- Twitter Cards -->
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="${productData.title}">
+<meta name="twitter:description" content="${productData.price ? 'Only ' + productData.price + ' • ' : ''}Lowest ever on Amazon!">
+<meta name="twitter:image" content="${productData.image}">
+
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+
         :root {
             --amazon-orange: #FF9900;
             --amazon-dark: #131921;
@@ -994,6 +993,7 @@ function generateErrorHTML() {
     </html>
   `;
 }
+
 
 
 
