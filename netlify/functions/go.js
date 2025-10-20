@@ -551,12 +551,6 @@ function generateHTML(productData, asin) {
     <meta property="og:type" content="product">
     <meta property="og:site_name" content="amazon.com">
     
-    <!-- Twitter Cards -->
-    <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" <meta property="og:title" content="DEAL: ${productData.title}">
-    <meta name="twitter:description" content="${productData.price ? 'Only ' + productData.price + ' • ' : ''}Lowest ever on Amazon!">
-    <meta name="twitter:image" content="${productData.image}">
-    
     <title>${productData.title}</title>
     
     <style>
@@ -991,6 +985,7 @@ function generateErrorHTML() {
     </html>
   `;
 }
+
 
 
 
