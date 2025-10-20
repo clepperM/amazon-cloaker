@@ -555,10 +555,13 @@ function generateHTML(productData, asin) {
 
     <!-- Twitter Cards -->
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" <meta property="og:title" content="DEAL: ${productData.title}">
+    <meta name="twitter:title" content="${productData.title}">
     <meta name="twitter:description" content="${productData.price ? 'Only ' + productData.price + ' • ' : ''}Lowest ever on Amazon!">
     <meta name="twitter:image" content="${productData.image}">
     
+    <title>${productData.title} - Lynx Finds Deals</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
             --amazon-orange: #FF9900;
@@ -991,6 +994,7 @@ function generateErrorHTML() {
     </html>
   `;
 }
+
 
 
 
