@@ -319,16 +319,33 @@ function parsePAAPI5Response(response, asin) {
   };
 }
 
-// IMPROVED Fallback scraping function with better selectors and image quality
+// Helper function to force high-res images
+function forceHighResImage(imageUrl) {
+  if (!imageUrl) return null;
+  
+  const imageIdMatch = imageUrl.match(/\/images\/I\/([A-Z0-9+]+)\./i);
+  
+  if (imageIdMatch) {
+    const imageId = imageIdMatch[1];
+    return `https://m.media-amazon.com/images/I/${imageId}._AC_SL1500_.jpg`;
+  }
+  
+  if (imageUrl.includes('/images/P/')) {
+    return imageUrl
+      .replace(/\._[A-Z0-9,_]*\./g, '._SL1500_.')
+      .replace(/\.jpg.*$/, '.jpg');
+  }
+  
+  return imageUrl;
+}
+
+// IMPROVED Fallback scraping function with high-res image forcing
 async function fetchAmazonProductScraping(asin) {
   const { parse } = require('node-html-parser');
   
-  // Try multiple User-Agent strings - more recent ones
   const userAgents = [
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0',
-    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
   ];
   
   const randomUserAgent = userAgents[Math.floor(Math.random() * userAgents.length)];
@@ -340,15 +357,9 @@ async function fetchAmazonProductScraping(asin) {
       method: 'GET',
       headers: {
         'User-Agent': randomUserAgent,
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         'Accept-Language': 'en-US,en;q=0.9',
-        'Accept-Encoding': 'gzip, deflate, br',
-        'Connection': 'keep-alive',
-        'Upgrade-Insecure-Requests': '1',
-        'Sec-Fetch-Dest': 'document',
-        'Sec-Fetch-Mode': 'navigate',
-        'Sec-Fetch-Site': 'none',
-        'Cache-Control': 'max-age=0'
+        'Connection': 'keep-alive'
       }
     };
 
@@ -361,12 +372,12 @@ async function fetchAmazonProductScraping(asin) {
       
       res.on('end', () => {
         try {
-          // Check if Amazon blocked the request
-          if (data.includes('Robot Check') || data.includes('blocked') || data.length < 1000) {
-            console.log('Amazon blocked scraping request for ASIN:', asin);
+          if (data.includes('Robot Check') || data.length < 1000) {
+            console.log('Amazon blocked, using fallback for ASIN:', asin);
+            
             resolve({
               title: `Amazon Product ${asin}`,
-              image: `https://images-na.ssl-images-amazon.com/images/P/${asin}.01._SL1500_.jpg`,
+              image: `https://m.media-amazon.com/images/I/${asin}._AC_SL1500_.jpg`,
               price: '',
               asin: asin
             });
@@ -374,45 +385,31 @@ async function fetchAmazonProductScraping(asin) {
           }
           
           const root = parse(data);
-          
-          // IMPROVED: Extract product title with more selectors and better cleaning
           let title = '';
-          const titleSelectors = [
-            '#productTitle',
-            '[data-automation-id="product-title"]',
-            '.product-title', 
-            'h1.a-size-large',
-            'h1[data-automation-id="product-title"]',
-            '.a-size-large.product-title-word-break',
-            'span#productTitle',
-            'h1.a-size-base-plus'
-          ];
+          let image = '';
+          let price = '';
           
+          // Extract title
+          const titleSelectors = ['#productTitle', 'h1.a-size-large', 'span#productTitle'];
           for (const selector of titleSelectors) {
             const element = root.querySelector(selector);
             if (element && element.text.trim()) {
-              title = element.text.trim();
-              // Clean up title - remove extra whitespace and common Amazon suffixes
-              title = title
+              title = element.text.trim()
                 .replace(/\s+/g, ' ')
                 .replace(/\s*-\s*Amazon\.com$/, '')
-                .replace(/\s*\|\s*Amazon\.com$/, '')
                 .trim();
-              break;
+              if (title.length > 10) break;
             }
           }
           
-          // IMPROVED: Extract product image with better quality and more attempts
-          let image = '';
+          // Extract ANY image URL - we'll fix it with forceHighResImage
           const imageSelectors = [
             '#landingImage',
-            '.a-dynamic-image',
             'img[data-old-hires]',
-            '.imgTagWrapper img',
-            '#main-image',
-            '.a-button-thumbnail img',
-            'img[src*="images-na.ssl-images-amazon.com"]',
-            'img[data-a-dynamic-image]'
+            '.a-dynamic-image',
+            'img[data-a-dynamic-image]',
+            'img[src*="images-na.ssl-images-amazon"]',
+            'img[src*="m.media-amazon"]'
           ];
           
           for (const selector of imageSelectors) {
@@ -420,59 +417,41 @@ async function fetchAmazonProductScraping(asin) {
             if (element) {
               let rawImage = element.getAttribute('data-old-hires') || 
                             element.getAttribute('src') ||
-                            element.getAttribute('data-a-dynamic-image') ||
-                            element.getAttribute('data-src');
-                            
-              if (rawImage && (rawImage.includes('images-na.ssl-images-amazon.com') || rawImage.includes('m.media-amazon.com'))) {
-                // Parse dynamic image JSON if present
+                            element.getAttribute('data-a-dynamic-image');
+              
+              if (rawImage) {
+                // Handle JSON format
                 if (rawImage.startsWith('{')) {
                   try {
                     const imageData = JSON.parse(rawImage);
                     const imageUrls = Object.keys(imageData);
-                    // Get the largest image available
-                    image = imageUrls.sort((a, b) => {
-                      const aSize = parseInt(a.match(/_SX(\d+)_/) || a.match(/(\d+)x\d+/) || [0, 0])[1] || 0;
-                      const bSize = parseInt(b.match(/_SX(\d+)_/) || b.match(/(\d+)x\d+/) || [0, 0])[1] || 0;
-                      return bSize - aSize;
-                    })[0];
+                    rawImage = imageUrls[0];
                   } catch (e) {
-                    const match = rawImage.match(/"([^"]*\.(?:jpg|jpeg|png|webp)[^"]*)"/i);
-                    if (match) image = match[1];
+                    const match = rawImage.match(/"([^"]*\.(?:jpg|jpeg)[^"]*)"/i);
+                    if (match) rawImage = match[1];
                   }
-                } else {
-                  image = rawImage;
                 }
                 
-                // IMPROVED: Force higher resolution and better quality
-                if (image && (image.includes('amazon.com') || image.includes('ssl-images-amazon'))) {
-                  image = image
-                    // Remove size restrictions and force larger images
-                    .replace(/\._[A-Z0-9,_]*\./g, '._AC_SL1500_.')
-                    .replace(/\._SX\d+_/g, '._SX1500_')
-                    .replace(/\._SY\d+_/g, '._SY1500_')
-                    .replace(/\._AC_UL\d+_/g, '._AC_UL1500_')
-                    .replace(/\._AC_UY\d+_/g, '._AC_UY1500_')
-                    // Ensure we get the highest quality
-                    .replace(/\._SS\d+_/g, '._SL1500_')
-                    // Remove compression artifacts parameters
-                    .replace(/,\d+_/g, '_');
+                // FORCE HIGH-RES using image ID
+                if (rawImage && rawImage.includes('amazon')) {
+                  image = forceHighResImage(rawImage);
+                  console.log('Forced high-res image:', image);
+                  break;
                 }
-                break;
               }
             }
           }
           
-          // IMPROVED: Extract price with more selectors
-          let price = '';
+          // If still no image, use ASIN-based fallback
+          if (!image) {
+            image = `https://m.media-amazon.com/images/I/${asin}._AC_SL1500_.jpg`;
+          }
+          
+          // Extract price
           const priceSelectors = [
-            '.a-price.a-text-price.a-size-medium.apexPriceToPay .a-offscreen',
             '.a-price .a-offscreen',
             '.a-price-whole',
-            '.a-price-symbol + .a-price-whole',
-            '#price_inside_buybox',
-            '.a-price.a-text-price .a-offscreen',
-            '[data-automation-id="list-price"] .a-offscreen',
-            '.a-price-current .a-offscreen'
+            '#priceblock_ourprice'
           ];
           
           for (const selector of priceSelectors) {
@@ -483,33 +462,18 @@ async function fetchAmazonProductScraping(asin) {
             }
           }
           
-          // If no price found, try one more method
-          if (!price) {
-            const priceElement = root.querySelector('.a-price');
-            if (priceElement) {
-              const priceText = priceElement.text;
-              const priceMatch = priceText.match(/\$[\d,]+\.?\d*/);
-              if (priceMatch) {
-                price = priceMatch[0];
-              }
-            }
-          }
-          
-          const result = {
+          resolve({
             title: title || `Amazon Product ${asin}`,
-            image: image || `https://images-na.ssl-images-amazon.com/images/P/${asin}.01._SL1500_.jpg`,
+            image: image,
             price: price,
             asin: asin
-          };
-          
-          console.log('Scraping result:', result);
-          resolve(result);
+          });
           
         } catch (parseError) {
           console.error('Parse error:', parseError);
           resolve({
             title: `Amazon Product ${asin}`,
-            image: `https://images-na.ssl-images-amazon.com/images/P/${asin}.01._SL1500_.jpg`,
+            image: `https://m.media-amazon.com/images/I/${asin}._AC_SL1500_.jpg`,
             price: '',
             asin: asin
           });
@@ -522,7 +486,7 @@ async function fetchAmazonProductScraping(asin) {
       reject(error);
     });
     
-    req.setTimeout(15000, () => { // Increased timeout
+    req.setTimeout(12000, () => {
       req.abort();
       reject(new Error('Scraping request timeout'));
     });
@@ -1008,6 +972,7 @@ function generateErrorHTML() {
     </html>
   `;
 }
+
 
 
 
