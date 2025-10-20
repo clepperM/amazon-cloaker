@@ -50,7 +50,7 @@ exports.handler = async (event, context) => {
     console.log('Using PA-API 5.0 for ASIN:', asin);
     
     // Fetch Amazon product data using PA-API 5.0
-    const productData = await fetchAmazonProductAPI(asin);
+    const productData = await fetchAmazonProductScrapingWithRetry(asin);
     
     // Generate HTML with OpenGraph tags
     const html = generateHTML(productData, asin);
@@ -68,7 +68,7 @@ exports.handler = async (event, context) => {
     // Fallback to scraping if API fails
     try {
       console.log('API failed, attempting scraping fallback');
-      const productData = await fetchAmazonProductScraping(asin);
+      const productData = await fetchAmazonProductScrapingWithRetry(asin);
       const html = generateHTML(productData, asin);
       return {
         statusCode: 200,
@@ -317,6 +317,25 @@ function parsePAAPI5Response(response, asin) {
     price: price,
     asin: asin
   };
+}
+
+// Wrapper function with retry logic
+async function fetchAmazonProductScrapingWithRetry(asin) {
+  // First attempt
+  let result = await fetchAmazonProductScraping(asin);
+  
+  // If we got a generic result, try ONE more time
+  if (result.title === `Amazon Product ${asin}` || !result.image) {
+    console.log('First scrape failed, retrying after delay...');
+    
+    // Wait 1 second before retry
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    // Second attempt
+    result = await fetchAmazonProductScraping(asin);
+  }
+  
+  return result;
 }
 
 // Helper function to force high-res images
@@ -972,6 +991,7 @@ function generateErrorHTML() {
     </html>
   `;
 }
+
 
 
 
