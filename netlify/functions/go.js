@@ -544,8 +544,8 @@ function generateHTML(productData, asin) {
     </script>
     
     <!-- OpenGraph Tags -->
-    <meta property="og:title" content="${productData.title}">
-    <meta property="og:description" content="Check out this amazing deal on Amazon! ${productData.price ? 'Price: ' + productData.price : 'Great value!'}">
+    <meta property="og:title" <meta property="og:title" content="DEAL: ${productData.title}">
+    <meta property="og:description" content="${productData.price ? 'Only ' + productData.price + ' • ' : ''}Lowest ever on Amazon!">
     <meta property="og:image" content="${productData.image}">
     <meta property="og:url" content="https://go.onelastlink.com/${asin}">
     <meta property="og:type" content="product">
@@ -553,8 +553,8 @@ function generateHTML(productData, asin) {
     
     <!-- Twitter Cards -->
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="${productData.title}">
-    <meta name="twitter:description" content="Check out this amazing deal on Amazon!">
+    <meta name="twitter:title" <meta property="og:title" content="DEAL: ${productData.title}">
+    <meta name="twitter:description" content="${productData.price ? 'Only ' + productData.price + ' • ' : ''}Lowest ever on Amazon!">
     <meta name="twitter:image" content="${productData.image}">
     
     <title>${productData.title}</title>
@@ -991,6 +991,7 @@ function generateErrorHTML() {
     </html>
   `;
 }
+
 
 
 
