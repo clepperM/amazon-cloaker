@@ -5,8 +5,3 @@
   from = "/*"
   to = "/.netlify/functions/go"
   status = 200
-
-[[redirects]]
-  from = "/create"
-  to = "/create.html"
-  status = 200
