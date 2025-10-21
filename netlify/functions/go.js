@@ -544,22 +544,32 @@ function generateHTML(productData, asin) {
     </script>
     
 <!-- OpenGraph Tags -->
-<meta property="og:title" content="DEAL: ${productData.title}">
-<meta property="og:description" content="${productData.price ? 'Only ' + productData.price + ' • ' : ''}Lowest ever on Amazon!">
+<meta property="og:title" content="${productData.title}">
+<meta property="og:description" content="${productData.price ? productData.price + ' - ' : ''}${productData.title}">
 <meta property="og:image" content="${productData.image}">
+<meta property="og:image:width" content="1500">
+<meta property="og:image:height" content="1500">
 <meta property="og:url" content="https://go.onelastlink.com/${asin}">
 <meta property="og:type" content="product">
-<meta property="og:site_name" content="amazon.com">
+<meta property="og:site_name" content="Amazon">
+${productData.price ? `<meta property="product:price:amount" content="${productData.price.replace('$', '')}">
+<meta property="product:price:currency" content="USD">` : ''}
+
+<!-- Twitter Card Tags -->
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="${productData.title}">
+<meta name="twitter:description" content="${productData.price ? productData.price + ' on Amazon - ' : ''}${productData.title.substring(0, 160)}">
+<meta name="twitter:image" content="${productData.image}">
+<meta name="twitter:image:alt" content="${productData.title}">
+
+<!-- Additional SEO -->
+<meta name="description" content="${productData.price ? productData.price + ' - ' : ''}${productData.title} - Shop on Amazon">
+<link rel="canonical" href="https://go.onelastlink.com/${asin}">
 
 <title>${productData.title}</title>
 
-<!-- Twitter Cards -->
-<meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="${productData.title}">
-<meta name="twitter:description" content="${productData.price ? 'Only ' + productData.price + ' • ' : ''}Lowest ever on Amazon!">
-<meta name="twitter:image" content="${productData.image}">
-
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
 <style>
 
         :root {
@@ -993,6 +1003,7 @@ function generateErrorHTML() {
     </html>
   `;
 }
+
 
 
 
