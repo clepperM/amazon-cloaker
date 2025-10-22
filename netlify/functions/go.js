@@ -545,7 +545,7 @@ function generateHTML(productData, asin) {
     
 <!-- OpenGraph Tags -->
 <meta property="og:title" content="${productData.title}">
-<meta property="og:description" content="${productData.price ? productData.price + ' - ' : ''}${productData.title.substring(0, 100)}${productData.title.length > 100 ? '...' : ''}">
+<meta property="og:description" content="${productData.price ? productData.price + ' on Amazon - ' : ''}Great deal - Shop now!">
 <meta property="og:image" content="${productData.image}">
 <meta property="og:image:width" content="1500">
 <meta property="og:image:height" content="1500">
@@ -560,7 +560,7 @@ ${productData.price ? `<meta property="product:price:amount" content="${productD
 <meta name="twitter:site" content="@lynxfindsdeals">
 <meta name="twitter:creator" content="@lynxfindsdeals">
 <meta name="twitter:title" content="${productData.title.substring(0, 70)}">
-<meta name="twitter:description" content="${productData.price ? productData.price + 'Lowest ever on Amazon'}">
+<meta name="twitter:description" content="${productData.price ? productData.price + ' - Lowest ever on Amazon' : 'Great deal on Amazon'}">
 <meta name="twitter:image" content="${productData.image}">
 
 <!-- Additional SEO -->
@@ -1004,6 +1004,7 @@ function generateErrorHTML() {
     </html>
   `;
 }
+
 
 
 
