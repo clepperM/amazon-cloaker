@@ -558,7 +558,7 @@ ${productData.price ? `<meta property="product:price:amount" content="${productD
 <!-- Twitter Card Tags -->
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="${productData.title}">
-<meta name="twitter:description" content="${productData.price ? productData.price + ' on Amazon - ' : ''}${productData.title.substring(0, 160)}">
+<meta name="twitter:description" content="${productData.price ? productData.price + ' Lowest Ever on Amazon - ' : ''}${productData.title.substring(0, 160)}">
 <meta name="twitter:image" content="${productData.image}">
 <meta name="twitter:image:alt" content="${productData.title}">
 
@@ -1003,6 +1003,7 @@ function generateErrorHTML() {
     </html>
   `;
 }
+
 
 
 
