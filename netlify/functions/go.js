@@ -545,7 +545,7 @@ function generateHTML(productData, asin) {
     
 <!-- OpenGraph Tags -->
 <meta property="og:title" content="${productData.title}">
-<meta property="og:description" content="${productData.price ? productData.price + ' on Amazon - ' : ''}Great deal - Shop now!">
+<meta property="og:description" content="${productData.price ? productData.price + ' - ' : ''}${productData.title}">
 <meta property="og:image" content="${productData.image}">
 <meta property="og:image:width" content="1500">
 <meta property="og:image:height" content="1500">
@@ -555,16 +555,15 @@ function generateHTML(productData, asin) {
 ${productData.price ? `<meta property="product:price:amount" content="${productData.price.replace('$', '')}">
 <meta property="product:price:currency" content="USD">` : ''}
 
-<!-- Twitter Card Tags (Required for X/Twitter) -->
-<meta name="twitter:card" content="summary">
-<meta name="twitter:site" content="@lynxfindsdeals">
-<meta name="twitter:creator" content="@lynxfindsdeals">
-<meta name="twitter:title" content="${productData.title.substring(0, 70)}">
-<meta name="twitter:description" content="${productData.price ? productData.price + ' - Lowest ever on Amazon' : 'Great deal on Amazon'}">
+<!-- Twitter Card Tags -->
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="${productData.title}">
+<meta name="twitter:description" content="${productData.price ? productData.price + ' on Amazon - ' : ''}${productData.title.substring(0, 160)}">
 <meta name="twitter:image" content="${productData.image}">
+<meta name="twitter:image:alt" content="${productData.title}">
 
 <!-- Additional SEO -->
-<meta name="description" content="${productData.price ? productData.price + ' - ' : ''}${productData.title} - Shop Deal on Amazon">
+<meta name="description" content="${productData.price ? productData.price + ' - ' : ''}${productData.title} - Shop on Amazon">
 <link rel="canonical" href="https://go.onelastlink.com/${asin}">
 
 <title>${productData.title}</title>
@@ -1004,6 +1003,7 @@ function generateErrorHTML() {
     </html>
   `;
 }
+
 
 
 
