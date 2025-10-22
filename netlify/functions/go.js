@@ -556,11 +556,13 @@ ${productData.price ? `<meta property="product:price:amount" content="${productD
 <meta property="product:price:currency" content="USD">` : ''}
 
 <!-- Twitter Card Tags -->
+<!-- Twitter Card Tags (Required for X/Twitter) -->
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="${productData.title}">
-<meta name="twitter:description" content="${productData.price ? productData.price + ' Lowest Ever on Amazon - ' : ''}${productData.title.substring(0, 160)}">
+<meta name="twitter:site" content="@lynxfindsdeals">
+<meta name="twitter:creator" content="@lynxfindsdeals">
+<meta name="twitter:title" content="${productData.title.substring(0, 70)}">
+<meta name="twitter:description" content="${productData.price ? productData.price + ' on Amazon' : 'Great deal on Amazon'}">
 <meta name="twitter:image" content="${productData.image}">
-<meta name="twitter:image:alt" content="${productData.title}">
 
 <!-- Additional SEO -->
 <meta name="description" content="${productData.price ? productData.price + ' - ' : ''}${productData.title} - Shop on Amazon">
@@ -1003,6 +1005,7 @@ function generateErrorHTML() {
     </html>
   `;
 }
+
 
 
 
